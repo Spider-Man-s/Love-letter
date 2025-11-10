@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 180246e155d0cc64b8f0156bc772ca8f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 242158
+  packageName: 60+ Free Character Portraits With Modular Background
+  packageVersion: 1.0
+  assetPath: Assets/CaptainCatSparrow/Portraits_1/Demo/Scripts/Demo.cs
+  uploadId: 557280
