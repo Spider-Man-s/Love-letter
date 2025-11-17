@@ -21,7 +21,7 @@ namespace LoveLetter.Networking
         // [SerializeField] private PlayerCharacterController _playerPrefab = null;
         // [SerializeField] private GameManager _gameManagerPrefab = null;
         // [SerializeField] private NetworkRunner _networkRunnerPrefab = null;
-        [SerializeField] private int _playerCount = 10;
+        [SerializeField] private int _playerCount = 6;
         private NetworkRunner _runner = null;
         private NetworkSceneManagerDefault _networkSceneManager = null;
         private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new Dictionary<PlayerRef, NetworkObject>();
