@@ -148,7 +148,9 @@ GameObject:
   m_Component:
   - component: {fileID: 1689390782291400582}
   - component: {fileID: 1726469184843520477}
+  - component: {fileID: 1750422203030248818}
   - component: {fileID: 1655061529937862798}
+  - component: {fileID: 7510708238403202830}
   m_Layer: 5
   m_Name: PlayerEnemy
   m_TagString: Untagged
@@ -184,6 +186,25 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7374936711629635632}
   m_CullTransparentMesh: 1
+--- !u!114 &1750422203030248818
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7374936711629635632}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SortKey: 3033582590
+  ObjectInterest: 1
+  Flags: 262145
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 7510708238403202830}
+  ForceRemoteRenderTimeframe: 0
 --- !u!114 &1655061529937862798
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -214,6 +235,24 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &7510708238403202830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7374936711629635632}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4cbaa198a9aca14eb39e35f9f83e7f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _SeatIndex: 0
+  _PlayerName:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  nameLabel: {fileID: 6002119761205333198}
 --- !u!1 &8622025526605407952
 GameObject:
   m_ObjectHideFlags: 0

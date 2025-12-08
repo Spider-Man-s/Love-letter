@@ -1,82 +1,104 @@
-using Fusion;
-
-
-using LoveLetter.Networking;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
+using Fusion;
+using Fusion.Sockets;
+using LoveLetter.Networking;
+using System.Collections.Generic;
 
 namespace LoveLetter.Login
 {
-    public class SessionView : Singleton<SessionView>
+    public class SessionView : Singleton<SessionView>, INetworkRunnerCallbacks
     {
-        [SerializeField] private Button _createRoomButton = null;
-        [SerializeField] private Button _refreshButton = null;
-        [SerializeField] private Button _joinButton = null;
-        [SerializeField] private GameObject _roomCreationView = null;
-        //  [SerializeField] private SessionDataView _sessionDataViewPrefab = null;
-        [SerializeField] private ToggleGroup _sessionListContainer = null;
-        // [SerializeField] private WeaponSelectionToggle _weaponSelectionTogglePrefab = null;
-        [SerializeField] private ToggleGroup _weaponSelectionContainer = null;
+        [Header("UI References")]
+        [SerializeField] private Button createRoomButton;
+        [SerializeField] private Button refreshButton;
+        [Header("Sessions List")]
+        [SerializeField] private Transform[] sessionSlots;
+        [SerializeField] private SessionData sessionPrefab;
 
-        /*
-        private (string, GameModeType, LevelType) _sessionData;
-        private List<SessionDataView> _sessions = new List<SessionDataView>();
+        [Header("Menus")]
+        [SerializeField] private GameObject createNewGameMenu = null;
+        [SerializeField] private GameObject sessionsMenu = null;
 
-        private void Awake()
+
+        private void Start()
         {
-            base.Awake();
-            _createRoomButton.onClick.AddListener(() =>
-            {
-                _roomCreationView.SetActive(true);
-                gameObject.SetActive(false);
-            });
+            createRoomButton.onClick.AddListener(OnCreateRoomClicked);
+            refreshButton.onClick.AddListener(RefreshSessionList);
 
-            _joinButton.interactable = false;
+            BasicSpawner.Instance.Runner.AddCallbacks(this);
 
-            foreach (var data in WeaponDataScriptable.Instance.Weapons)
-            {
-                WeaponSelectionToggle weaponToggle = Instantiate(_weaponSelectionTogglePrefab, _weaponSelectionContainer.transform);
-                weaponToggle.ShowWeapon(data.WeaponType, _weaponSelectionContainer, data.WeaponImage, (weaponType) => WeaponDataScriptable.SetSelectedWeaponType(weaponType));
-            }
-
-            UpdateSessionList();
-            _refreshButton.onClick.AddListener(UpdateSessionList);
-            _joinButton.onClick.AddListener(() => FusionConnection.Instance.JoinSession(_sessionData.Item1, _sessionData.Item2));
+            RefreshSessionList();
         }
 
-        public void UpdateSessionList()
+        private void OnCreateRoomClicked()
         {
-            
+            createNewGameMenu.SetActive(true);
+            sessionsMenu.SetActive(false);
 
-            foreach (var item in _sessions)
-            {
-                if (item != null)
-                    Destroy(item.gameObject);
-            }
-            _sessions.Clear();
+        }
 
-            foreach (var item in FusionConnection.Instance.Sessions)
+        public void RefreshSessionList()
+        {
+            List<SessionInfo> sessions = BasicSpawner.Instance.Sessions;
+
+            for (int i = 0; i < sessionSlots.Length; i++)
             {
-                SessionDataView newSessions = Instantiate(_sessionDataViewPrefab, _sessionListContainer.transform);
-                newSessions.ShowSession(item.Name, item.PlayerCount, item.MaxPlayers, (LevelType)(int)item.Properties["LevelType"],
-                 (GameModeType)(int)item.Properties["GameModeType"], SessionOnToggle, _sessionListContainer);
-                _sessions.Add(newSessions);
+                Transform slot = sessionSlots[i];
+
+                // Clear existing session data in the slot
+                foreach (Transform child in slot)
+                    Destroy(child.gameObject);
+
+                if (i < sessions.Count)
+                {
+                    // Instantiate a session entry inside the slot
+                    SessionData entry = Instantiate(sessionPrefab, slot);
+                    entry.Setup(sessions[i]);
+                }
+                else
+                {
+                    // Slot is empty; you can optionally hide it or leave empty
+                }
             }
         }
 
-        private void SessionOnToggle(bool isOn, (string, GameModeType, LevelType) sessionData)
+        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
         {
-            if (isOn)
-            {
-                _sessionData = sessionData;
-                _joinButton.interactable = true;
-            }
-            else if (sessionData == _sessionData) _joinButton.interactable = false;
+            var sessions = BasicSpawner.Instance.Sessions;
+            sessions.Clear();
+            sessions.AddRange(sessionList);
+            RefreshSessionList();
         }
-        */
+
+
+
+        public void OnPlayerJoined(NetworkRunner runner, PlayerRef player) { }
+        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
+
+        public void OnInput(NetworkRunner runner, NetworkInput input) { }
+        public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
+
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+        public void OnConnectedToServer(NetworkRunner runner) { }
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+        public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
+
+        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
+        public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
+
+        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
+        public void OnSceneLoadDone(NetworkRunner runner) { }
+        public void OnSceneLoadStart(NetworkRunner runner) { }
+
+        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
+        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
+
     }
-
 }
-
-

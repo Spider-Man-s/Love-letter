@@ -57,38 +57,31 @@ namespace LoveLetter.Login
                 _playerNameMenu.SetActive(false);
             });
 
-            /*
-                        if (BasicSpawner.Instance.PlayerName != null)
-                        {
-                            _mainMenu.SetActive(false);
-                            _lobbyMenu.SetActive(true);
-                            BasicSpawner.Instance.ConnectToLobby();
-                        }
-                        */
-        }
-
-        /*
-                private void LoginPressed()
+            _confirmNameButton.onClick.AddListener(() =>
+            {
+                string enteredName = _playerName.text;
+                if (string.IsNullOrEmpty(enteredName))
                 {
-                    if (_playerName.text.Length > 15)
-                    {
-                        _notificationText.text = "Your name can be up to 15 characters long";
-                        _notificationText.gameObject.SetActive(true);
-                        return;
-                    }
-                    else
-                    {
-                        _notificationText.gameObject.SetActive(false);
-                    }
-
-                    _startButton.interactable = false;
-                    _playerName.interactable = false;
-
-                    BasicSpawner.Instance.ConnectToLobby(_playerName.text);
-                    _mainMenu.SetActive(false);
-                    _lobbyMenu.SetActive(true);
+                    enteredName = _autoFillPlayerName.text;
                 }
 
-        */
+                if (enteredName.Length > 15)
+                {
+                    _notificationText.text = "Your name can be up to 15 characters long";
+                    _notificationText.gameObject.SetActive(true);
+                    return;
+                }
+                else
+                {
+                    _notificationText.gameObject.SetActive(false);
+                }
+
+                BasicSpawner.Instance.ConnectToLobby(enteredName);
+                _playerNameMenu.SetActive(false);
+                _sessionsMenu.SetActive(true);
+            });
+
+
+        }
     }
 }
