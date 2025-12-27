@@ -1,8 +1,10 @@
 using Fusion;
 using Fusion.Sockets;
 using System.Collections.Generic;
+using System.ComponentModel;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+
 
 namespace LoveLetter.Networking
 {
@@ -26,6 +28,28 @@ namespace LoveLetter.Networking
         public Transform[] PlayerPositions => _playerPositions;
 
 
+        public static class PlayerData
+        {
+            public static string LocalPlayerName;
+            public static int LocalAvatarId;
+        }
+
+        public static class RoomCodeGenerator
+        {
+            private const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+            public static string Generate(int length = 6)
+            {
+                System.Random r = new System.Random();
+                char[] code = new char[length];
+
+                for (int i = 0; i < length; i++)
+                    code[i] = chars[r.Next(chars.Length)];
+
+                return new string(code);
+            }
+        }
+
 
         private void Awake()
         {
@@ -35,37 +59,44 @@ namespace LoveLetter.Networking
         }
 
 
-        public void ConnectToLobby(string playerName)
+        public void ConnectToLobby(string playerName, int selectedAvatarId)
         {
             if (!string.IsNullOrEmpty(playerName))
                 _playerName = playerName;
+
+            PlayerData.LocalPlayerName = _playerName;
+            PlayerData.LocalAvatarId = selectedAvatarId;
 
             _runner.JoinSessionLobby(SessionLobby.ClientServer);
         }
 
 
+
         public async void StartHost()
         {
             PlayerData.LocalPlayerName = _playerName;
+            PlayerData.LocalAvatarId = PlayerPrefs.GetInt("SelectedAvatarId", 0);
+            string roomCode = RoomCodeGenerator.Generate();
 
             await _runner.StartGame(new StartGameArgs()
             {
                 GameMode = GameMode.Host,
-                SessionName = "LoveLetterRoom",
+                SessionName = roomCode,
                 Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex + 1),
                 SceneManager = _networkSceneManager
             });
         }
 
 
-        public async void StartClient()
+        public async void StartClient(string roomCode)
         {
             PlayerData.LocalPlayerName = _playerName;
+            PlayerData.LocalAvatarId = PlayerPrefs.GetInt("SelectedAvatarId", 0);
 
             await _runner.StartGame(new StartGameArgs()
             {
                 GameMode = GameMode.Client,
-                SessionName = "LoveLetterRoom",
+                SessionName = roomCode,
                 SceneManager = _networkSceneManager
             });
         }
@@ -76,7 +107,15 @@ namespace LoveLetter.Networking
             if (!runner.IsServer)
                 return;
 
-            int seatIndex = player.RawEncoded;
+            int totalSeats = PlayerPositions.Length;
+
+            // Assign seats on server
+            int seatIndex = _spawnedPlayers.Count; // simple sequential assignment
+            if (seatIndex >= totalSeats)
+            {
+                Debug.LogWarning("Max players reached!");
+                return;
+            }
 
             Transform spawnPoint = PlayerPositions[seatIndex];
 
@@ -85,8 +124,16 @@ namespace LoveLetter.Networking
                 : _playerPrefabEnemy;
 
             NetworkObject obj = runner.Spawn(prefab, spawnPoint.position, spawnPoint.rotation, player);
-
+            obj.transform.SetParent(_playerPositions[seatIndex]);
             _spawnedPlayers.Add(player, obj);
+
+            var playerComponent = obj.GetComponent<Player>();
+
+            // Server sets networked data
+            string name = (player == runner.LocalPlayer) ? PlayerData.LocalPlayerName : $"Player{seatIndex}";
+            int avatarId = (player == runner.LocalPlayer) ? PlayerData.LocalAvatarId : 0;
+
+            playerComponent.Initialize(name, seatIndex, avatarId);
         }
 
 
@@ -165,9 +212,6 @@ namespace LoveLetter.Networking
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
     }
 
-    // Helper to store UI player name for spawning
-    public static class PlayerData
-    {
-        public static string LocalPlayerName;
-    }
+
+
 }

@@ -13,6 +13,11 @@ namespace LoveLetter.Login
         [Header("UI References")]
         [SerializeField] private Button createRoomButton;
         [SerializeField] private Button refreshButton;
+        [SerializeField] private Button returnButton;
+        [SerializeField] private Button joinCustomGameButton;
+
+        [SerializeField] private TextMeshProUGUI gameCodeText;
+
         [Header("Sessions List")]
         [SerializeField] private Transform[] sessionSlots;
         [SerializeField] private SessionData sessionPrefab;
@@ -20,12 +25,19 @@ namespace LoveLetter.Login
         [Header("Menus")]
         [SerializeField] private GameObject createNewGameMenu = null;
         [SerializeField] private GameObject sessionsMenu = null;
+        [SerializeField] private GameObject playerMenu = null;
 
 
         private void Start()
         {
             createRoomButton.onClick.AddListener(OnCreateRoomClicked);
             refreshButton.onClick.AddListener(RefreshSessionList);
+            joinCustomGameButton.onClick.AddListener(() => JoinCustomGame(gameCodeText.text));
+            returnButton.onClick.AddListener(() =>
+            {
+                sessionsMenu.SetActive(false);
+                playerMenu.SetActive(true);
+            });
 
             BasicSpawner.Instance.Runner.AddCallbacks(this);
 
@@ -39,6 +51,17 @@ namespace LoveLetter.Login
 
         }
 
+        public void JoinCustomGame(string sessionName)
+        {
+            //dodati jos provjeru koda igre
+            BasicSpawner.Instance.StartGame(
+             GameMode.Client,
+             sessionName,
+             maxPlayers: 6,
+             isPrivate: true
+         );
+        }
+
         public void RefreshSessionList()
         {
             List<SessionInfo> sessions = BasicSpawner.Instance.Sessions;
@@ -47,19 +70,14 @@ namespace LoveLetter.Login
             {
                 Transform slot = sessionSlots[i];
 
-                // Clear existing session data in the slot
                 foreach (Transform child in slot)
                     Destroy(child.gameObject);
 
                 if (i < sessions.Count)
                 {
-                    // Instantiate a session entry inside the slot
+
                     SessionData entry = Instantiate(sessionPrefab, slot);
                     entry.Setup(sessions[i]);
-                }
-                else
-                {
-                    // Slot is empty; you can optionally hide it or leave empty
                 }
             }
         }

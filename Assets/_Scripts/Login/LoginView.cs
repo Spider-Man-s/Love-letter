@@ -2,6 +2,8 @@ using LoveLetter.Networking;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
+using System.Diagnostics;
 
 namespace LoveLetter.Login
 {
@@ -12,7 +14,7 @@ namespace LoveLetter.Login
         [Header("Buttons")]
         [SerializeField] private Button _startButton = null;
         [SerializeField] private Button _quitButton = null;
-        [SerializeField] private Button _confirmNameButton = null;
+        [SerializeField] private Button _confirmPlayerInfoButton = null;
         [SerializeField] private Button _returnButton = null;
         [Header("Text")]
         [SerializeField] private TextMeshProUGUI _notificationText = null;
@@ -23,6 +25,7 @@ namespace LoveLetter.Login
         [SerializeField] private GameObject _lobbyMenu = null;
         [SerializeField] private GameObject _playerNameMenu = null;
         [SerializeField] private GameObject _sessionsMenu = null;
+        [SerializeField] private ToggleGroup AvatarToggleGroup = null;
 
         private const string _chars = "abcdefghijklmnoprstuzv";
         private void Awake()
@@ -57,31 +60,47 @@ namespace LoveLetter.Login
                 _playerNameMenu.SetActive(false);
             });
 
-            _confirmNameButton.onClick.AddListener(() =>
-            {
-                string enteredName = _playerName.text;
-                if (string.IsNullOrEmpty(enteredName))
-                {
-                    enteredName = _autoFillPlayerName.text;
-                }
+            _confirmPlayerInfoButton.onClick.AddListener(() =>
+     {
+         string enteredName = _playerName.text;
 
-                if (enteredName.Length > 15)
-                {
-                    _notificationText.text = "Your name can be up to 15 characters long";
-                    _notificationText.gameObject.SetActive(true);
-                    return;
-                }
-                else
-                {
-                    _notificationText.gameObject.SetActive(false);
-                }
+         if (string.IsNullOrEmpty(enteredName))
+             enteredName = _autoFillPlayerName.text;
 
-                BasicSpawner.Instance.ConnectToLobby(enteredName);
-                _playerNameMenu.SetActive(false);
-                _sessionsMenu.SetActive(true);
-            });
+         if (enteredName.Length > 15)
+         {
+             _notificationText.text = "Your name can be up to 15 characters long";
+             _notificationText.gameObject.SetActive(true);
+             return;
+         }
+
+         _notificationText.gameObject.SetActive(false);
+
+         int selectedAvatarId = GetSelectedIndex();
+         if (selectedAvatarId == -1)
+         {
+             UnityEngine.Debug.LogWarning("No avatar selected, defaulting to 0");
+             selectedAvatarId = 0;
+         }
+
+         PlayerPrefs.SetInt("SelectedAvatarId", selectedAvatarId);
+
+         BasicSpawner.Instance.ConnectToLobby(enteredName, selectedAvatarId);
+
+         _playerNameMenu.SetActive(false);
+         _sessionsMenu.SetActive(true);
+     });
 
 
+        }
+        public int GetSelectedIndex()
+        {
+            var selected = AvatarToggleGroup.ActiveToggles().FirstOrDefault();
+            if (selected == null)
+                return -1;
+
+            UnityEngine.Debug.Log("Selected avatar index: " + selected.transform.GetSiblingIndex());
+            return selected.transform.GetSiblingIndex();
         }
     }
 }
