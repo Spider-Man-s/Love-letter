@@ -1,152 +1,217 @@
 using Fusion;
 using Fusion.Sockets;
-using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using Unity.VisualScripting;
-using WebSocketSharp;
 
-/*
-using SpellFlinger.PlayScene;
-using SpellFlinger.Enum;
-using SpellFlinger.LoginScene;
 
- */
 namespace LoveLetter.Networking
 {
     public class BasicSpawner : SingletonPersistent<BasicSpawner>, INetworkRunnerCallbacks
     {
-        private static string _playerName = null;
-        // [SerializeField] private PlayerCharacterController _playerPrefab = null;
-        // [SerializeField] private GameManager _gameManagerPrefab = null;
-        // [SerializeField] private NetworkRunner _networkRunnerPrefab = null;
-        [SerializeField] private int _playerCount = 10;
-        private NetworkRunner _runner = null;
-        private NetworkSceneManagerDefault _networkSceneManager = null;
-        private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new Dictionary<PlayerRef, NetworkObject>();
-        private List<SessionInfo> _sessions = new List<SessionInfo>();
-        // private static GameModeType _gameModeType;
+        [Header("Player Prefabs")]
+        [SerializeField] private NetworkPrefabRef _playerPrefabOWN;
+        [SerializeField] private NetworkPrefabRef _playerPrefabEnemy;
 
-        // public PlayerCharacterController LocalCharacterController { get; set; }
+        private NetworkRunner _runner;
+        private NetworkSceneManagerDefault _networkSceneManager;
+
+        private Dictionary<PlayerRef, NetworkObject> _spawnedPlayers = new();
+        private List<SessionInfo> _sessions = new();
+
         public List<SessionInfo> Sessions => _sessions;
-        // public static GameModeType GameModeType => _gameModeType;
-
+        private static string _playerName;
         public string PlayerName => _playerName;
+        public NetworkRunner Runner => _runner;
+        private Transform[] _playerPositions;
+        public Transform[] PlayerPositions => _playerPositions;
+
+
+        public static class PlayerData
+        {
+            public static string LocalPlayerName;
+            public static int LocalAvatarId;
+        }
+
+        public static class RoomCodeGenerator
+        {
+            private const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+            public static string Generate(int length = 6)
+            {
+                System.Random r = new System.Random();
+                char[] code = new char[length];
+
+                for (int i = 0; i < length; i++)
+                    code[i] = chars[r.Next(chars.Length)];
+
+                return new string(code);
+            }
+        }
+
 
         private void Awake()
         {
             base.Awake();
+            _runner = GetComponent<NetworkRunner>();
             _networkSceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
-            _runner = gameObject.AddComponent<NetworkRunner>();
         }
 
-        public void ConnectToLobby(String playerName = null)
+
+        public void ConnectToLobby(string playerName, int selectedAvatarId)
         {
-            if (!playerName.IsNullOrEmpty()) _playerName = playerName;
+            if (!string.IsNullOrEmpty(playerName))
+                _playerName = playerName;
+
+            PlayerData.LocalPlayerName = _playerName;
+            PlayerData.LocalAvatarId = selectedAvatarId;
+
             _runner.JoinSessionLobby(SessionLobby.ClientServer);
         }
-        // Lab2 -> CreateSession
-        async void StartGame(GameMode mode)
+
+
+
+        public async void StartHost()
         {
-            // Create the Fusion runner and let it know that we will be providing user input
-            _runner = gameObject.AddComponent<NetworkRunner>();
-            _runner.ProvideInput = true;
+            PlayerData.LocalPlayerName = _playerName;
+            PlayerData.LocalAvatarId = PlayerPrefs.GetInt("SelectedAvatarId", 0);
+            string roomCode = RoomCodeGenerator.Generate();
 
-            // Create the NetworkSceneInfo from the current scene
-            var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
-            var sceneInfo = new NetworkSceneInfo();
-            if (scene.IsValid)
-            {
-                sceneInfo.AddSceneRef(scene, LoadSceneMode.Additive);
-            }
-
-            // Start or join (depends on gamemode) a session with a specific name
             await _runner.StartGame(new StartGameArgs()
             {
-                GameMode = mode,
-                SessionName = "TestRoom",
-                Scene = scene,
-                SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+                GameMode = GameMode.Host,
+                SessionName = roomCode,
+                Scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex + 1),
+                SceneManager = _networkSceneManager
             });
         }
 
+
+        public async void StartClient(string roomCode)
+        {
+            PlayerData.LocalPlayerName = _playerName;
+            PlayerData.LocalAvatarId = PlayerPrefs.GetInt("SelectedAvatarId", 0);
+
+            await _runner.StartGame(new StartGameArgs()
+            {
+                GameMode = GameMode.Client,
+                SessionName = roomCode,
+                SceneManager = _networkSceneManager
+            });
+        }
+
+
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
+            if (!runner.IsServer)
+                return;
 
+            int totalSeats = PlayerPositions.Length;
+
+            // Assign seats on server
+            int seatIndex = _spawnedPlayers.Count; // simple sequential assignment
+            if (seatIndex >= totalSeats)
+            {
+                Debug.LogWarning("Max players reached!");
+                return;
+            }
+
+            Transform spawnPoint = PlayerPositions[seatIndex];
+
+            NetworkPrefabRef prefab = (player == runner.LocalPlayer)
+                ? _playerPrefabOWN
+                : _playerPrefabEnemy;
+
+            NetworkObject obj = runner.Spawn(prefab, spawnPoint.position, spawnPoint.rotation, player);
+            obj.transform.SetParent(_playerPositions[seatIndex]);
+            _spawnedPlayers.Add(player, obj);
+
+            var playerComponent = obj.GetComponent<Player>();
+
+            // Server sets networked data
+            string name = (player == runner.LocalPlayer) ? PlayerData.LocalPlayerName : $"Player{seatIndex}";
+            int avatarId = (player == runner.LocalPlayer) ? PlayerData.LocalAvatarId : 0;
+
+            playerComponent.Initialize(name, seatIndex, avatarId);
         }
+
+
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
-
+            if (_spawnedPlayers.TryGetValue(player, out var obj))
+            {
+                runner.Despawn(obj);
+                _spawnedPlayers.Remove(player);
+            }
         }
-        public void OnInput(NetworkRunner runner, NetworkInput input)
-        {
 
+        public void CreateRoom(string sessionName, int maxPlayers, bool isPrivate)
+        {
+            StartGame(GameMode.Host, sessionName, maxPlayers, isPrivate);
         }
-        public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input)
-        {
 
-        }
-        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+        public async void StartGame(GameMode mode, string sessionName, int maxPlayers, bool isPrivate)
         {
+            if (_runner == null)
+                _runner = gameObject.AddComponent<NetworkRunner>();
 
-        }
-        public void OnConnectedToServer(NetworkRunner runner)
-        {
+            _runner.AddCallbacks(this);
+            _runner.ProvideInput = false;
 
-        }
-        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
-        {
+            var scene = SceneRef.FromIndex(1);
 
-        }
-        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token)
-        {
-
-        }
-        public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
-        {
-
-        }
-        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message)
-        {
-
-        }
-        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
-        {
-
-        }
-        public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data)
-        {
-
-        }
-        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
-        {
-
+            await _runner.StartGame(new StartGameArgs()
+            {
+                GameMode = mode,
+                SessionName = sessionName,
+                PlayerCount = maxPlayers,
+                IsVisible = !isPrivate,
+                Scene = scene,
+                SceneManager = _networkSceneManager
+            });
         }
         public void OnSceneLoadDone(NetworkRunner runner)
         {
+            GameObject positionsRoot = GameObject.Find("Players");
+
+            if (positionsRoot == null)
+            {
+                Debug.LogError("PlayerPositions object not found in the scene!");
+                return;
+            }
+
+
+            _playerPositions = new Transform[6];
+
+            _playerPositions[0] = positionsRoot.transform.Find("PlayerPositionOWN");
+            _playerPositions[1] = positionsRoot.transform.Find("PlayerPosition_1");
+            _playerPositions[2] = positionsRoot.transform.Find("PlayerPosition_2");
+            _playerPositions[3] = positionsRoot.transform.Find("PlayerPosition_3");
+            _playerPositions[4] = positionsRoot.transform.Find("PlayerPosition_4");
+            _playerPositions[5] = positionsRoot.transform.Find("PlayerPosition_5");
 
         }
-        public void OnSceneLoadStart(NetworkRunner runner)
-        {
 
-        }
-        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
-        {
+        public void OnInput(NetworkRunner runner, NetworkInput input) { }
+        public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+        public void OnConnectedToServer(NetworkRunner runner) { }
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+        public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
+        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
+        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { _sessions = sessionList; }
+        public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
+        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
 
-        }
-        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
-        {
-
-        }
-        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
-        {
-
-        }
-        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
-        {
-
-        }
+        public void OnSceneLoadStart(NetworkRunner runner) { }
+        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
+        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
     }
+
+
 
 }
