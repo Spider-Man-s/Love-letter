@@ -1,31 +1,28 @@
 using System.Collections.Generic;
 using UnityEngine;
+using LoveLetter.Networking;
+using System.Linq;
+using Fusion;
 
-public class GameManager : MonoBehaviour
+
+public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
     public TurnState CurrentTurnState;
     public List<PlayerState> Players = new();
     public Deck Deck;
+    public DeckView DeckView;
 
     public int CurrentPlayerIndex;
 
     private void Awake()
     {
         Instance = this;
+
     }
-#region test method
+    #region test method
     private void Start()
     {
-        Players = new List<PlayerState>
-    {
-        new PlayerState(0),
-        new PlayerState(1),
-        new PlayerState(2),
-        new PlayerState(3)
-    };
-
-    PlayRound();
 
     }
     public void PlayRound(int maxPlayers = 4)
@@ -115,7 +112,22 @@ public class GameManager : MonoBehaviour
     }
 
 
-#endregion
+    #endregion
+
+    // ******************************************************************************************************************************
+    // Actual game methods
+    // ******************************************************************************************************************************
+    public void BeginMatch()
+    {
+        if (!Object.HasStateAuthority)
+            return;
+
+        int playerCount = BasicSpawner.Instance.Runner.ActivePlayers.Count();
+
+        StartGame(playerCount);
+
+        RPC_StartMatch(Deck.Count);
+    }
 
     public void StartGame(int playerCount)
     {
@@ -123,6 +135,13 @@ public class GameManager : MonoBehaviour
 
         Deck = new Deck(CardDatabase.CreateDeck());
         Deck.Shuffle();
+
+
+        if (DeckView != null)
+        {
+            DeckView.Initialize();
+            DeckView.UpdateCount(Deck.Count);
+        }
 
         DealInitialCards();
         CurrentPlayerIndex = 0;
@@ -244,8 +263,8 @@ public class GameManager : MonoBehaviour
         var field = typeof(Deck).GetField("cards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         field.SetValue(Deck, new Stack<Card>(list));
     }
-#region card play
-    
+    #region card play
+
 
     private void DrawPhase()
     {
@@ -256,7 +275,7 @@ public class GameManager : MonoBehaviour
         var drawnCard = Deck.Draw();
 
         player.DrawCard(drawnCard);
-
+        DeckView.UpdateCount(Deck.Count);
         Debug.Log($"Player {player.PlayerId} draws {drawnCard}");
 
         CurrentTurnState = TurnState.WaitingForPlay;
@@ -299,9 +318,9 @@ public class GameManager : MonoBehaviour
 
         EndTurn();
     }
-#endregion
+    #endregion
 
-#region turn manage methods
+    #region turn manage methods
     public void StartTurn()
     {
         var player = GetCurrentPlayer();
@@ -327,6 +346,24 @@ public class GameManager : MonoBehaviour
 
         StartTurn();
     }
-#endregion
+    #endregion
+
+
+    //*********************************************************************
+    // RPC METHODS
+    //*********************************************************************
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_StartMatch(int deckCount)
+    {
+        Debug.Log("RPC_StartMatch received");
+
+        if (DeckView != null)
+        {
+            DeckView.Initialize();
+            DeckView.UpdateCount(deckCount);
+        }
+    }
+
+
 
 }

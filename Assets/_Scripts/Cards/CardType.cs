@@ -9,5 +9,9 @@ public enum CardType
     Chancellor = 6,
     King = 7,
     Countess = 8,
-    Princess = 9
+    Princess = 9,
+
+    CardBack = 10,
+    Instructions = 11,
+    InstructionsBack = 12
 }

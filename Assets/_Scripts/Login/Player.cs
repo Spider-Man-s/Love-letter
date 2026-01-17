@@ -3,6 +3,7 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 using System.Diagnostics;
+using LoveLetter.Networking;
 
 public class Player : NetworkBehaviour
 {
@@ -14,17 +15,27 @@ public class Player : NetworkBehaviour
 
     [Header("Visual References")]
     [SerializeField] private TMP_Text nameLabel;
+    [SerializeField] private TMP_Text upNameLabel;
     [SerializeField] private Image avatarImageRenderer;
+    [SerializeField] private GameObject frameOwn;
+    [SerializeField] private GameObject frameEnemy;
 
-    // Called when the object spawns on a client
+
+
     public override void Spawned()
     {
         IsLocal = Object.HasInputAuthority;
         UpdateVisuals();
-        UnityEngine.Debug.Log($"Player spawned | Name = {PlayerName} | Seat = {SeatIndex} | Local = {IsLocal}");
+        if (IsLocal)
+        {
+            RPC_SetNameAndAvatar(
+                BasicSpawner.PlayerData.LocalPlayerName,
+                BasicSpawner.PlayerData.LocalAvatarId
+            );
+        }
+        Invoke(nameof(NotifySeatArranger), 0.1f);
     }
 
-    // Initialize called on server
     public void Initialize(string name, int seat, int avatarId)
     {
         SeatIndex = seat;
@@ -34,17 +45,16 @@ public class Player : NetworkBehaviour
             PlayerName = name;
             AvatarId = avatarId;
         }
-
-        // Update visuals immediately for local client
         UpdateVisuals();
     }
 
-    // Helper to update TMP_Text and SpriteRenderer
     private void UpdateVisuals()
     {
 
         if (nameLabel != null)
             nameLabel.text = PlayerName.ToString();
+        if (upNameLabel != null)
+            upNameLabel.text = PlayerName.ToString();
 
         if (avatarImageRenderer != null && AvatarScriptable.Instance != null)
         {
@@ -52,12 +62,35 @@ public class Player : NetworkBehaviour
             if (AvatarId >= 0 && AvatarId < avatars.Length)
                 avatarImageRenderer.sprite = avatars[AvatarId];
         }
+        if (IsLocal)
+        {
+            frameOwn.SetActive(true);
+            frameEnemy.SetActive(false);
+        }
+        else
+        {
+            frameOwn.SetActive(false);
+            frameEnemy.SetActive(true);
+        }
         UnityEngine.Debug.Log($"Player visuals updated | Name = {PlayerName} | AvatarId = {AvatarId}");
     }
 
-    // Optional: called each render frame, keeps visuals synced
     public override void Render()
     {
         UpdateVisuals();
     }
+    private void NotifySeatArranger()
+    {
+        var arranger = FindObjectOfType<SeatArranger>();
+        arranger?.ArrangeSeats();
+    }
+
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SetNameAndAvatar(string name, int avatarId)
+    {
+        PlayerName = name;
+        AvatarId = avatarId;
+    }
+
 }
