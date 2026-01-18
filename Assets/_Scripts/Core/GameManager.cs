@@ -43,6 +43,7 @@ public class GameManager : NetworkBehaviour
 
         if (seatByPlayer == null)
             seatByPlayer = new Dictionary<PlayerRef, int>();
+        //  Debug.Log($"GameManager Awake | NetId: {Object?.Id} | InstanceHash: {GetHashCode()}");
     }
 
     #region test method (unchanged)
@@ -100,6 +101,8 @@ public class GameManager : NetworkBehaviour
             seatByPlayer[player] = seatIndex;
             Debug.Log($"Registered player {player} at seat {seatIndex}");
         }
+        //  Debug.Log($"RegisterNetworkPlayer | InstanceHash: {GetHashCode()}");
+
     }
 
     private Card ChooseCardToPlay(PlayerState player)
@@ -133,8 +136,6 @@ public class GameManager : NetworkBehaviour
 
     public void BeginMatch()
     {
-        Debug.Log("Players.Count = " + Players.Count);
-        Debug.Log("seatByPlayer.Count = " + seatByPlayer.Count);
 
         if (!Object.HasStateAuthority)
             return;
@@ -146,9 +147,18 @@ public class GameManager : NetworkBehaviour
         }
 
         int playerCount = seatByPlayer.Count;
+
         StartGame(playerCount);
 
         RPC_StartMatch(Deck.Count);
+
+        StartCoroutine(DelayedSendHands());
+    }
+
+
+    private System.Collections.IEnumerator DelayedSendHands()
+    {
+        yield return null; // wait 1 frame so Player.Spawned() runs
 
         foreach (var kvp in seatByPlayer)
         {
@@ -157,13 +167,18 @@ public class GameManager : NetworkBehaviour
 
             PlayerState state = Players[seatIndex];
 
+            // Everyone sees card count
             RPC_SendHandCount(seatIndex, state.Hand.Count);
 
+            // Only owner sees real hand
             int[] cardTypes = state.Hand.Select(c => (int)c.Type).ToArray();
-            RPC_SendLocalHand(player, seatIndex, cardTypes);
+
+            NetworkObject playerObj = BasicSpawner.Instance.GetPlayerObject(player);
+            Player playerComponent = playerObj.GetComponent<Player>();
+
+            playerComponent.RPC_SendLocalHand(seatIndex, cardTypes);
         }
     }
-
     public void StartGame(int playerCount)
     {
         CreatePlayers(playerCount);
@@ -356,15 +371,6 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-    private void RPC_SendLocalHand(PlayerRef target, int seatIndex, int[] cardTypes)
-    {
-        var cards = new List<Card>();
-        foreach (var ct in cardTypes)
-            cards.Add(new Card((CardType)ct));
-
-        TableUIController.Instance.SetLocalHand(seatIndex, cards);
-    }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_SendHandCount(int seatIndex, int count)

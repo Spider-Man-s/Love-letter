@@ -5,7 +5,6 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Linq;
 
-
 namespace LoveLetter.Networking
 {
     public class BasicSpawner : SingletonPersistent<BasicSpawner>, INetworkRunnerCallbacks
@@ -37,6 +36,7 @@ namespace LoveLetter.Networking
         {
             public static string LocalPlayerName;
             public static int LocalAvatarId;
+            public static int LocalSeatIndex = -1;
         }
 
         public static class RoomCodeGenerator
@@ -122,6 +122,8 @@ namespace LoveLetter.Networking
                 .OrderBy(p => p.RawEncoded)
                 .ToList()
                 .IndexOf(player);
+
+            UnityEngine.Debug.Log($"[OnPlayerJoined] Server assigning seat {seatIndex} to {player}");
 
             if (seatIndex >= PlayerPositions.Length)
             {
@@ -219,6 +221,10 @@ namespace LoveLetter.Networking
         }
 
 
+        public NetworkObject GetPlayerObject(PlayerRef pr)
+        {
+            return _spawnedPlayers.TryGetValue(pr, out var obj) ? obj : null;
+        }
 
 
 

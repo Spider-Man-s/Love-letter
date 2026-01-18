@@ -22,9 +22,14 @@ public class TableUIController : MonoBehaviour
     private List<CardView>[] handCards;
     private List<CardView>[] playedCards;
 
-    private IEnumerator Start()
+    private void Awake()
     {
         Instance = this;
+    }
+
+    private IEnumerator Start()
+    {
+
 
         handCards = new List<CardView>[6];
         playedCards = new List<CardView>[6];
@@ -78,10 +83,12 @@ public class TableUIController : MonoBehaviour
         foreach (var card in cards)
         {
             var cv = Instantiate(cardPrefab, handGroups[seatIndex].transform, false);
-            cv.Setup(card);
+            cv.Setup(card);                // face-up real card
             handCards[seatIndex].Add(cv);
         }
     }
+
+
 
     private void ClearHand(int seatIndex)
     {
