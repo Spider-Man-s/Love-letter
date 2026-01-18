@@ -12,6 +12,9 @@ public class CreateGame : MonoBehaviour
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private Toggle privateToggle;
     [SerializeField] private Button createButton;
+    [SerializeField] private Button returnButton;
+    [SerializeField] private GameObject createGameMenu;
+    [SerializeField] private GameObject sessionsMenu;
     private const string _chars = "abcdefghijklmnoprstuzv";
     private string sessionName = null;
 
@@ -24,6 +27,7 @@ public class CreateGame : MonoBehaviour
     private void Start()
     {
         createButton.onClick.AddListener(OnCreateClicked);
+        returnButton.onClick.AddListener(OnReturnClicked);
     }
 
     private void Update()
@@ -49,5 +53,10 @@ public class CreateGame : MonoBehaviour
         Debug.Log($"Creating room: {sessionName}, max players: {maxPlayers}, private: {isPrivate}");
 
         BasicSpawner.Instance.CreateRoom(sessionName, maxPlayers, isPrivate);
+    }
+    private void OnReturnClicked()
+    {
+        createGameMenu.SetActive(false);
+        sessionsMenu.SetActive(true);
     }
 }

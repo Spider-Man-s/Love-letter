@@ -6,7 +6,15 @@ public class CardVisualDatabase : ScriptableObject
     public CardVisual[] visuals;
 
     private static CardVisualDatabase _instance;
-    public static CardVisualDatabase Instance => _instance;
+    public static CardVisualDatabase Instance
+    {
+        get
+        {
+            if (_instance == null)
+                _instance = Resources.Load<CardVisualDatabase>("CardVisualDatabase");
+            return _instance;
+        }
+    }
 
     private void OnEnable()
     {

@@ -3,6 +3,8 @@ using Fusion.Sockets;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Linq;
+
 
 namespace LoveLetter.Networking
 {
@@ -27,7 +29,10 @@ namespace LoveLetter.Networking
 
         private Transform[] _playerPositions;
         public Transform[] PlayerPositions => _playerPositions;
+        [Header("Game Manager Prefab")]
+        [SerializeField] private NetworkPrefabRef _gameManagerPrefab;
 
+        static NetworkObject gameManagerInstance = null;
         public static class PlayerData
         {
             public static string LocalPlayerName;
@@ -98,26 +103,46 @@ namespace LoveLetter.Networking
             });
         }
 
+
+
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
             if (!runner.IsServer)
                 return;
 
-            int seatIndex = _spawnedPlayers.Count;
+            // 1. Spawn GameManager once on the server
+            if (gameManagerInstance == null)
+            {
+                gameManagerInstance = runner.Spawn(_gameManagerPrefab, Vector3.zero, Quaternion.identity);
+                Debug.Log("GameManager network-spawned.");
+            }
+
+            // 2. Seat assignment
+            int seatIndex = runner.ActivePlayers
+                .OrderBy(p => p.RawEncoded)
+                .ToList()
+                .IndexOf(player);
+
             if (seatIndex >= PlayerPositions.Length)
             {
                 Debug.LogWarning("Max players reached!");
                 return;
             }
 
+            // 3. Player spawn
             NetworkObject obj = runner.Spawn(_playerPrefab, Vector3.zero, Quaternion.identity, player);
-
             _spawnedPlayers.Add(player, obj);
 
             Player p = obj.GetComponent<Player>();
-
             p.SeatIndex = seatIndex;
+
+            // 4. Now GameManager.Instance is guaranteed to exist
+            GameManager.Instance.RegisterNetworkPlayer(player, seatIndex);
+
+            Debug.Log($"Player {player} registered to seat {seatIndex}");
         }
+
+
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {

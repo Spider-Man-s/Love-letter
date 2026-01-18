@@ -729,7 +729,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &67659401
 RectTransform:
   m_ObjectHideFlags: 0
@@ -11261,6 +11261,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _playerPrefab:
     RawGuidValue: 131d2b0b9a08a9e4ebab1cbdf9991dd8
+  _gameManagerPrefab:
+    RawGuidValue: b7118bb0525e307428b3eb81a02510c0
 --- !u!114 &1621080359
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11279,6 +11281,9 @@ MonoBehaviour:
   playerCountText: {fileID: 1202237271}
   privateToggle: {fileID: 435928527}
   createButton: {fileID: 1219940555}
+  returnButton: {fileID: 682151200}
+  createGameMenu: {fileID: 688615089}
+  sessionsMenu: {fileID: 1752267572}
 --- !u!114 &1621080360
 MonoBehaviour:
   m_ObjectHideFlags: 0

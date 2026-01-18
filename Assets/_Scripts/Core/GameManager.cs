@@ -4,32 +4,54 @@ using LoveLetter.Networking;
 using System.Linq;
 using Fusion;
 
-
 public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
+
     public TurnState CurrentTurnState;
     public List<PlayerState> Players = new();
     public Deck Deck;
-    public DeckView DeckView;
+
+    // DeckView is now resolved at runtime because prefab cannot reference scene objects.
+    private DeckView deckView;
+    public DeckView DeckView
+    {
+        get
+        {
+            if (deckView == null)
+                deckView = FindObjectOfType<DeckView>(true);
+            return deckView;
+        }
+    }
 
     public int CurrentPlayerIndex;
+    private Dictionary<PlayerRef, int> seatByPlayer = new();
 
-    private void Awake()
+    public override void Spawned()
     {
         Instance = this;
 
+        if (seatByPlayer == null)
+            seatByPlayer = new Dictionary<PlayerRef, int>();
     }
-    #region test method
-    private void Start()
-    {
 
+    private void Awake()
+    {
+        // For host-only editor play
+        if (Instance == null)
+            Instance = this;
+
+        if (seatByPlayer == null)
+            seatByPlayer = new Dictionary<PlayerRef, int>();
     }
+
+    #region test method (unchanged)
+    private void Start() { }
+
     public void PlayRound(int maxPlayers = 4)
     {
         Debug.Log("=== NEW ROUND ===");
 
-        // inicijalizacija
         Players = new List<PlayerState>();
         for (int i = 0; i < maxPlayers; i++)
             Players.Add(new PlayerState(i));
@@ -63,70 +85,83 @@ public class GameManager : NetworkBehaviour
         else
             Debug.Log("=== Round ended with no winner ===");
     }
+    #endregion
+
+    public void RegisterNetworkPlayer(PlayerRef player, int seatIndex)
+    {
+        if (!Object || !Object.HasStateAuthority)
+            return;
+
+        if (seatByPlayer == null)
+            seatByPlayer = new Dictionary<PlayerRef, int>();
+
+        if (!seatByPlayer.ContainsKey(player))
+        {
+            seatByPlayer[player] = seatIndex;
+            Debug.Log($"Registered player {player} at seat {seatIndex}");
+        }
+    }
 
     private Card ChooseCardToPlay(PlayerState player)
     {
-        // Countess prisilno pravilo
         bool hasCountess = player.Hand.Exists(c => c.Type == CardType.Countess);
         bool hasPrinceOrKing = player.Hand.Exists(c => c.Type == CardType.Prince || c.Type == CardType.King);
 
         if (hasCountess && hasPrinceOrKing)
-        {
             return player.Hand.Find(c => c.Type == CardType.Countess);
-        }
 
-        // inače odabere prvu kartu (simple AI)
         return player.Hand[0];
     }
 
     private int? ChooseTarget(PlayerState player, Card card)
     {
-        // target only if card needs it
         if (!(card.Type == CardType.Guard ||
-            card.Type == CardType.Priest ||
-            card.Type == CardType.Baron ||
-            card.Type == CardType.Prince ||
-            card.Type == CardType.King))
+              card.Type == CardType.Priest ||
+              card.Type == CardType.Baron ||
+              card.Type == CardType.Prince ||
+              card.Type == CardType.King))
             return null;
 
-        var targets = Players.FindAll(p => p.IsAlive && p.PlayerId != player.PlayerId && !p.IsProtected);
+        var targets = Players.FindAll(p =>
+            p.IsAlive && p.PlayerId != player.PlayerId && !p.IsProtected);
+
         if (targets.Count == 0)
             return null;
 
         return targets[Random.Range(0, targets.Count)].PlayerId;
     }
 
-    public void PrintDeck()
-    {
-        Debug.Log("Deck contents from top to bottom:");
-        var deckList = new List<Card>();
-        var field = typeof(Deck).GetField("cards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        deckList = new List<Card>((Stack<Card>)field.GetValue(Deck));
-
-        deckList.Reverse();
-
-        for (int i = 0; i < deckList.Count; i++)
-        {
-            Debug.Log($"{i + 1}: {deckList[i]}");
-        }
-    }
-
-
-    #endregion
-
-    // ******************************************************************************************************************************
-    // Actual game methods
-    // ******************************************************************************************************************************
     public void BeginMatch()
     {
+        Debug.Log("Players.Count = " + Players.Count);
+        Debug.Log("seatByPlayer.Count = " + seatByPlayer.Count);
+
         if (!Object.HasStateAuthority)
             return;
 
-        int playerCount = BasicSpawner.Instance.Runner.ActivePlayers.Count();
+        if (seatByPlayer.Count == 0)
+        {
+            Debug.LogError("BeginMatch called but no players registered!");
+            return;
+        }
 
+        int playerCount = seatByPlayer.Count;
         StartGame(playerCount);
 
         RPC_StartMatch(Deck.Count);
+
+        foreach (var kvp in seatByPlayer)
+        {
+            PlayerRef player = kvp.Key;
+            int seatIndex = kvp.Value;
+
+            PlayerState state = Players[seatIndex];
+
+            RPC_SendHandCount(seatIndex, state.Hand.Count);
+
+            int[] cardTypes = state.Hand.Select(c => (int)c.Type).ToArray();
+            RPC_SendLocalHand(player, seatIndex, cardTypes);
+        }
     }
 
     public void StartGame(int playerCount)
@@ -135,13 +170,6 @@ public class GameManager : NetworkBehaviour
 
         Deck = new Deck(CardDatabase.CreateDeck());
         Deck.Shuffle();
-
-
-        if (DeckView != null)
-        {
-            DeckView.Initialize();
-            DeckView.UpdateCount(Deck.Count);
-        }
 
         DealInitialCards();
         CurrentPlayerIndex = 0;
@@ -157,20 +185,11 @@ public class GameManager : NetworkBehaviour
     private void DealInitialCards()
     {
         foreach (var player in Players)
-        {
             player.Hand.Add(Deck.Draw());
-        }
     }
 
-    public PlayerState GetCurrentPlayer()
-    {
-        return Players[CurrentPlayerIndex];
-    }
-
-    public PlayerState GetPlayer(int playerId)
-    {
-        return Players[playerId];
-    }
+    public PlayerState GetCurrentPlayer() => Players[CurrentPlayerIndex];
+    public PlayerState GetPlayer(int playerId) => Players[playerId];
 
     public void EliminatePlayer(int playerId)
     {
@@ -185,10 +204,7 @@ public class GameManager : NetworkBehaviour
     {
         var target = Players[targetPlayerId];
 
-        if (!target.IsAlive)
-            return null;
-
-        if (target.IsProtected)
+        if (!target.IsAlive || target.IsProtected)
             return null;
 
         Card discarded = null;
@@ -215,17 +231,12 @@ public class GameManager : NetworkBehaviour
 
         return discarded;
     }
+
     public void ChancellorDrawAndReturn(int playerId)
     {
         var player = Players[playerId];
-
         if (!player.IsAlive)
             return;
-
-        if (Deck.Count < 2)
-        {
-            Debug.LogWarning("Not enough cards in deck for Chancellor");
-        }
 
         var drawnCards = new List<Card>();
         for (int i = 0; i < 2 && Deck.Count > 0; i++)
@@ -233,38 +244,32 @@ public class GameManager : NetworkBehaviour
             var card = Deck.Draw();
             player.Hand.Add(card);
             drawnCards.Add(card);
-            Debug.Log($"Player {playerId} draws {card} for Chancellor");
         }
 
-        // Za sada deterministički: sve na dno u istom redoslijedu
         foreach (var card in drawnCards)
         {
             player.Hand.Remove(card);
             var list = DeckToList();
-            list.Add(card); // prvo drawnCard[0] ide prvi natrag, treba namjestiti da odabrana karta ide
+            list.Add(card);
             SetDeckFromList(list);
-
-            Debug.Log($"Player {playerId} returns {card} to bottom of deck");
         }
     }
+
     private List<Card> DeckToList()
     {
-        return DeckToListInternal(Deck);
-    }
+        var field = typeof(Deck).GetField("cards",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-    private List<Card> DeckToListInternal(Deck deck)
-    {
-        var field = typeof(Deck).GetField("cards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return new List<Card>((Stack<Card>)field.GetValue(deck));
+        return new List<Card>((Stack<Card>)field.GetValue(Deck));
     }
 
     private void SetDeckFromList(List<Card> list)
     {
-        var field = typeof(Deck).GetField("cards", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var field = typeof(Deck).GetField("cards",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
         field.SetValue(Deck, new Stack<Card>(list));
     }
-    #region card play
-
 
     private void DrawPhase()
     {
@@ -275,8 +280,9 @@ public class GameManager : NetworkBehaviour
         var drawnCard = Deck.Draw();
 
         player.DrawCard(drawnCard);
-        DeckView.UpdateCount(Deck.Count);
-        Debug.Log($"Player {player.PlayerId} draws {drawnCard}");
+
+        if (DeckView != null)
+            DeckView.UpdateCount(Deck.Count);
 
         CurrentTurnState = TurnState.WaitingForPlay;
     }
@@ -287,21 +293,17 @@ public class GameManager : NetworkBehaviour
             return;
 
         var player = Players[playerId];
-        bool hasCountess = player.Hand.Exists(c => c.Type == CardType.Countess);
-        bool hasPrinceOrKing = player.Hand.Exists(c => c.Type == CardType.Prince || c.Type == CardType.King);
+        bool mustPlayCountess =
+            player.Hand.Exists(c => c.Type == CardType.Countess) &&
+            player.Hand.Exists(c => c.Type == CardType.Prince || c.Type == CardType.King);
 
-        if (hasCountess && hasPrinceOrKing && card.Type != CardType.Countess)
-        {
-            Debug.Log("Must play Countess due to Prince/King rule");
+        if (mustPlayCountess && card.Type != CardType.Countess)
             card = player.Hand.Find(c => c.Type == CardType.Countess);
-        }
 
         if (!player.Hand.Contains(card))
             return;
 
         player.RemoveCard(card);
-
-        Debug.Log($"Player {playerId} plays {card}");
 
         CurrentTurnState = TurnState.Resolving;
 
@@ -311,25 +313,21 @@ public class GameManager : NetworkBehaviour
     private void ResolveCard(Card card, int playerId, EffectContext context)
     {
         var effect = CardEffectFactory.Get(card.Type);
-
-        //var context = new EffectContext(); // kasnije dolazi iz UI-ja / networka
-
         effect.Resolve(this, playerId, context);
 
         EndTurn();
     }
-    #endregion
 
-    #region turn manage methods
     public void StartTurn()
     {
         var player = GetCurrentPlayer();
 
-        player.IsProtected = false; // reset Handmaiden zaštite
+        player.IsProtected = false;
         CurrentTurnState = TurnState.WaitingForDraw;
 
         DrawPhase();
     }
+
     private void EndTurn()
     {
         CurrentTurnState = TurnState.TurnEnded;
@@ -346,17 +344,11 @@ public class GameManager : NetworkBehaviour
 
         StartTurn();
     }
-    #endregion
 
-
-    //*********************************************************************
-    // RPC METHODS
-    //*********************************************************************
+    // RPCs (unchanged)
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_StartMatch(int deckCount)
     {
-        Debug.Log("RPC_StartMatch received");
-
         if (DeckView != null)
         {
             DeckView.Initialize();
@@ -364,6 +356,32 @@ public class GameManager : NetworkBehaviour
         }
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    private void RPC_SendLocalHand(PlayerRef target, int seatIndex, int[] cardTypes)
+    {
+        var cards = new List<Card>();
+        foreach (var ct in cardTypes)
+            cards.Add(new Card((CardType)ct));
 
+        TableUIController.Instance.SetLocalHand(seatIndex, cards);
+    }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SendHandCount(int seatIndex, int count)
+    {
+        TableUIController.Instance?.SetHandCount(seatIndex, count);
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestSync()
+    {
+        RPC_SendDeckCount(Deck.Count);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SendDeckCount(int count)
+    {
+        if (DeckView != null)
+            DeckView.UpdateCount(count);
+    }
 }

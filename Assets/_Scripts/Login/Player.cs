@@ -25,7 +25,8 @@ public class Player : NetworkBehaviour
     public override void Spawned()
     {
         IsLocal = Object.HasInputAuthority;
-        UpdateVisuals();
+
+        // Local player sends name & avatar
         if (IsLocal)
         {
             RPC_SetNameAndAvatar(
@@ -33,7 +34,23 @@ public class Player : NetworkBehaviour
                 BasicSpawner.PlayerData.LocalAvatarId
             );
         }
+
+        // Register ONLY when GameManager is ready
+        if (Runner.IsServer)
+            StartCoroutine(WaitForGameManager());
+
+        UpdateVisuals();
         Invoke(nameof(NotifySeatArranger), 0.1f);
+    }
+    private System.Collections.IEnumerator WaitForGameManager()
+    {
+        while (GameManager.Instance == null)
+            yield return null;
+
+        GameManager.Instance.RegisterNetworkPlayer(
+            Object.InputAuthority,
+            SeatIndex
+        );
     }
 
     public void Initialize(string name, int seat, int avatarId)
@@ -72,7 +89,7 @@ public class Player : NetworkBehaviour
             frameOwn.SetActive(false);
             frameEnemy.SetActive(true);
         }
-        UnityEngine.Debug.Log($"Player visuals updated | Name = {PlayerName} | AvatarId = {AvatarId}");
+        // UnityEngine.Debug.Log($"Player visuals updated | Name = {PlayerName} | AvatarId = {AvatarId}");
     }
 
     public override void Render()

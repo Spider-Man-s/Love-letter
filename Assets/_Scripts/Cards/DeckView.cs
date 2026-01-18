@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using LoveLetter.Networking;
 public class DeckView : MonoBehaviour
 {
     [SerializeField] private CardView cardPrefab;
@@ -7,7 +8,11 @@ public class DeckView : MonoBehaviour
     [SerializeField] private Transform cardParent;
 
     private CardView deckCard;
+    void Start()
+    {
 
+
+    }
     public void Initialize()
     {
         deckCard = Instantiate(cardPrefab, cardParent, false);

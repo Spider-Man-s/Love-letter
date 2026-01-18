@@ -13,7 +13,8 @@ public class CardView : MonoBehaviour
         CardData = card;
 
         // Set sprite from database
-        art.sprite = CardVisualDatabase.Instance.GetSprite(card.Type);
+        art.sprite = CardVisualDatabaseMB.Instance.GetSprite(card.Type);
+
 
         // Turn highlight off by default
         if (highlight != null)
