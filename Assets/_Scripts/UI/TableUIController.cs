@@ -64,29 +64,34 @@ public class TableUIController : MonoBehaviour
     // HAND UI
     // ============================================================
 
-    public void SetHandCount(int seatIndex, int count)
+    public void SetHandCount(int globalSeatIndex, int count)
     {
-        ClearHand(seatIndex);
+        int localSeatIndex = GlobalToLocalSeat(globalSeatIndex);
+
+        ClearHand(localSeatIndex);
 
         for (int i = 0; i < count; i++)
         {
-            var cv = Instantiate(cardPrefab, handGroups[seatIndex].transform, false);
+            var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
             cv.Setup(new Card(CardType.CardBack));
-            handCards[seatIndex].Add(cv);
+            handCards[localSeatIndex].Add(cv);
         }
     }
 
-    public void SetLocalHand(int seatIndex, List<Card> cards)
+    public void SetLocalHand(int globalSeatIndex, List<Card> cards)
     {
-        ClearHand(seatIndex);
+        int localSeatIndex = GlobalToLocalSeat(globalSeatIndex);
+
+        ClearHand(localSeatIndex);
 
         foreach (var card in cards)
         {
-            var cv = Instantiate(cardPrefab, handGroups[seatIndex].transform, false);
-            cv.Setup(card);                // face-up real card
-            handCards[seatIndex].Add(cv);
+            var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
+            cv.Setup(card);
+            handCards[localSeatIndex].Add(cv);
         }
     }
+
 
 
 
@@ -135,4 +140,13 @@ public class TableUIController : MonoBehaviour
             playedCards[i].Clear();
         }
     }
+
+    public static int GlobalToLocalSeat(int globalSeat)
+    {
+        int mySeat = BasicSpawner.PlayerData.LocalSeatIndex;
+        const int TOTAL_SEATS = 6;
+
+        return (globalSeat - mySeat + TOTAL_SEATS) % TOTAL_SEATS;
+    }
+
 }
