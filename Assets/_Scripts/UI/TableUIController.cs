@@ -64,30 +64,37 @@ public class TableUIController : MonoBehaviour
     // HAND UI
     // ============================================================
 
-    public void SetHandCount(int globalSeatIndex, int count)
+    public void SetLocalHand(int seatIndex, List<Card> cards)
     {
-        int localSeatIndex = GlobalToLocalSeat(globalSeatIndex);
-
-        ClearHand(localSeatIndex);
-
-        for (int i = 0; i < count; i++)
-        {
-            var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
-            cv.Setup(new Card(CardType.CardBack));
-            handCards[localSeatIndex].Add(cv);
-        }
-    }
-
-    public void SetLocalHand(int globalSeatIndex, List<Card> cards)
-    {
-        int localSeatIndex = GlobalToLocalSeat(globalSeatIndex);
-
+        int localSeatIndex = GlobalToLocalSeat(seatIndex);
         ClearHand(localSeatIndex);
 
         foreach (var card in cards)
         {
             var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
             cv.Setup(card);
+
+            // Make only local card interactable
+            cv.IsLocalCard = true;
+            cv.SetInteractable(true);
+
+            handCards[localSeatIndex].Add(cv);
+        }
+    }
+
+    public void SetHandCount(int seatIndex, int count)
+    {
+        int localSeatIndex = GlobalToLocalSeat(seatIndex);
+        ClearHand(localSeatIndex);
+
+        for (int i = 0; i < count; i++)
+        {
+            var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
+            cv.Setup(new Card(CardType.CardBack));
+
+            cv.IsLocalCard = false;
+            cv.SetInteractable(false);
+
             handCards[localSeatIndex].Add(cv);
         }
     }

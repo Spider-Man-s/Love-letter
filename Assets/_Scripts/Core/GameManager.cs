@@ -136,7 +136,6 @@ public class GameManager : NetworkBehaviour
 
     public void BeginMatch()
     {
-
         if (!Object.HasStateAuthority)
             return;
 
@@ -152,9 +151,18 @@ public class GameManager : NetworkBehaviour
 
         RPC_StartMatch(Deck.Count);
 
+        StartCoroutine(WaitAndStartFirstTurn());
         StartCoroutine(DelayedSendHands());
     }
 
+    private System.Collections.IEnumerator WaitAndStartFirstTurn()
+    {
+        // Wait until DeckView exists on this machine
+        while (DeckView == null)
+            yield return null;
+
+        StartTurn();
+    }
 
     private System.Collections.IEnumerator DelayedSendHands()
     {
@@ -325,6 +333,32 @@ public class GameManager : NetworkBehaviour
         ResolveCard(card, playerId, context);
     }
 
+    public void LocalPlayerPlayedCard(CardView cardView)
+    {
+        int seatIndex = BasicSpawner.PlayerData.LocalSeatIndex;
+        var card = cardView.CardData;
+
+        Debug.Log($"[GM] Local player at seat {seatIndex} plays {card.Type}");
+
+        // Send RPC to Server that this player played card
+        RPC_RequestPlayCard(seatIndex, (int)card.Type);
+    }
+
+
+    public bool CanPlayerPlayThisCard(CardView cardView)
+    {
+        if (CurrentTurnState != TurnState.WaitingForPlay)
+            return false;
+
+        // Must be local seat’s turn
+        if (cardView.CardData == null)
+            return false;
+        if (BasicSpawner.PlayerData.LocalSeatIndex != CurrentPlayerIndex)
+            return false;
+
+        return true;
+    }
+
     private void ResolveCard(Card card, int playerId, EffectContext context)
     {
         var effect = CardEffectFactory.Get(card.Type);
@@ -390,4 +424,20 @@ public class GameManager : NetworkBehaviour
         if (DeckView != null)
             DeckView.UpdateCount(count);
     }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RequestPlayCard(int seatIndex, int cardType)
+    {
+        Debug.Log($"[Server] Player {seatIndex} requests to play {((CardType)cardType)}");
+
+        var card = Players[seatIndex].Hand.Find(c => c.Type == (CardType)cardType);
+        if (card == null)
+        {
+            Debug.LogError("Server: Card not found in hand.");
+            return;
+        }
+
+        PlayCard(seatIndex, card, new EffectContext());
+    }
+
 }
