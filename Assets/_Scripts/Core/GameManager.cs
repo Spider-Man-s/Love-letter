@@ -11,8 +11,9 @@ public class GameManager : NetworkBehaviour
     public TurnState CurrentTurnState;
     public List<PlayerState> Players = new();
     public Deck Deck;
+    private CardType? _pendingCardType;
 
-    // DeckView is now resolved at runtime because prefab cannot reference scene objects.
+
     private DeckView deckView;
     public DeckView DeckView
     {
@@ -136,6 +137,17 @@ public class GameManager : NetworkBehaviour
 
     public void BeginMatch()
     {
+        Debug.Log("=== BeginMatch() CALLED ===");
+
+        if (TableUIController.Instance == null)
+            Debug.LogError("UI ERROR: TableUIController.Instance is NULL");
+        else
+            Debug.Log("UI OK: TableUIController found");
+
+
+        Debug.Log($"Authority Check: HasStateAuthority = {Object.HasStateAuthority}");
+
+        Debug.Log($"Players registered in seatByPlayer: {seatByPlayer.Count}");
         if (!Object.HasStateAuthority)
             return;
 
@@ -249,7 +261,7 @@ public class GameManager : NetworkBehaviour
 
         var newCard = Deck.Draw();
         target.DrawCard(newCard);
-
+        SyncDeck();
         Debug.Log($"Player {targetPlayerId} draws {newCard}");
 
         return discarded;
@@ -276,6 +288,7 @@ public class GameManager : NetworkBehaviour
             list.Add(card);
             SetDeckFromList(list);
         }
+        SyncDeck();
     }
 
     private List<Card> DeckToList()
@@ -304,8 +317,7 @@ public class GameManager : NetworkBehaviour
 
         player.DrawCard(drawnCard);
 
-        if (DeckView != null)
-            DeckView.UpdateCount(Deck.Count);
+        SyncDeck();
 
         CurrentTurnState = TurnState.WaitingForPlay;
     }
@@ -327,7 +339,7 @@ public class GameManager : NetworkBehaviour
             return;
 
         player.RemoveCard(card);
-
+        RPC_CardPlayed(playerId, (int)card.Type);
         CurrentTurnState = TurnState.Resolving;
 
         ResolveCard(card, playerId, context);
@@ -338,11 +350,15 @@ public class GameManager : NetworkBehaviour
         int seatIndex = BasicSpawner.PlayerData.LocalSeatIndex;
         var card = cardView.CardData;
 
-        Debug.Log($"[GM] Local player at seat {seatIndex} plays {card.Type}");
+        Debug.Log($"[GM] Local player at seat {seatIndex} clicked {card.Type}");
 
-        // Send RPC to Server that this player played card
-        RPC_RequestPlayCard(seatIndex, (int)card.Type);
+        TargetSelectionUI.Instance.OpenForPlayers();
+
+        // Store last played card temporarily
+        _pendingCardType = card.Type;
+
     }
+
 
 
     public bool CanPlayerPlayThisCard(CardView cardView)
@@ -365,6 +381,10 @@ public class GameManager : NetworkBehaviour
         effect.Resolve(this, playerId, context);
 
         EndTurn();
+    }
+    private void SyncDeck()
+    {
+        RPC_SendDeckCount(Deck.Count);
     }
 
     public void StartTurn()
@@ -393,8 +413,56 @@ public class GameManager : NetworkBehaviour
 
         StartTurn();
     }
+    public void LocalPlayerConfirmedTarget(int targetSeat, CardType guess)
+    {
+        int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        Debug.Log($"[GM] Local seat {localSeat} confirmed target {targetSeat}, guess {guess}");
+
+        if (_pendingCardType == null)
+        {
+            Debug.LogError("No pending card to play!");
+            return;
+        }
+
+        // send RPC to server
+        RPC_RequestPlayCardWithContext(localSeat, targetSeat, (int)guess);
+
+        _pendingCardType = null; // clear
+    }
+
+
+
 
     // RPCs (unchanged)
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_RequestPlayCardWithContext(int seatIndex, int targetSeat, int guessedType)
+    {
+        Debug.Log($"[Server] Player {seatIndex} plays with context -> target: {targetSeat}, guess: {(CardType)guessedType}");
+
+        var player = Players[seatIndex];
+        var card = player.Hand.FirstOrDefault(c => c.Type == (CardType)_pendingCardType);
+
+
+        if (card == null)
+        {
+            Debug.LogError("Server: No card found to play.");
+            return;
+        }
+
+        var ctx = new EffectContext
+        {
+            TargetPlayerId = targetSeat,
+            GuessedCard = guessedType >= 0 ? (CardType?)guessedType : null
+        };
+
+
+        PlayCard(seatIndex, card, ctx);
+    }
+
+
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_StartMatch(int deckCount)
     {
@@ -439,5 +507,26 @@ public class GameManager : NetworkBehaviour
 
         PlayCard(seatIndex, card, new EffectContext());
     }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_CardPlayed(int seatIndex, int cardType)
+    {
+        TableUIController.Instance.AddPlayedCard(
+            seatIndex,
+            new Card((CardType)cardType)
+        );
+
+        // Update hand counts visually
+        TableUIController.Instance.SetHandCount(
+            seatIndex,
+            Players[seatIndex].Hand.Count
+        );
+    }
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    private void RPC_OpenTargetSelection()
+    {
+        TargetSelectionUI.Instance.OpenForPlayers();
+    }
+
 
 }

@@ -24,6 +24,7 @@ public class TableUIController : MonoBehaviour
 
     private void Awake()
     {
+        Debug.Log("[UI] TableUIController Awake ON: " + gameObject.name);
         Instance = this;
     }
 
