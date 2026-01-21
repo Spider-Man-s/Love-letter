@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using LoveLetter.Networking;
+using TMPro;
 
 public class TargetSelectionUI : MonoBehaviour
 {
@@ -9,8 +10,14 @@ public class TargetSelectionUI : MonoBehaviour
     [SerializeField] private PlayerSelectToggle playerTogglePrefab;
     [SerializeField] private Button confirmButton;
     [SerializeField] private GameObject panelRoot;
+    [SerializeField] private GameObject playerSection;
+    [SerializeField] private GameObject cardSection;
+    [SerializeField] private TextMeshProUGUI playerSectionText;
+    [SerializeField] private TextMeshProUGUI cardSectionText;
 
     private int selectedPlayerSeat = -1;
+    private int _currentCardId = -1;
+
     private CardType selectedCardGuess = CardType.Guard; // TEMP DEFAULT
     public static TargetSelectionUI Instance { get; private set; }
 
@@ -25,9 +32,16 @@ public class TargetSelectionUI : MonoBehaviour
     // ===============================
     // OPEN PANEL
     // ===============================
-    public void OpenForPlayers(bool allowSelfTarget = true)
+    public void OpenForPlayers(int cardId)
     {
         Clear();
+
+        // Determine what should be shown
+        bool allowSelfTarget = ConfigureForCard(cardId);
+
+        // If UI is not needed, exit
+        if (!panelRoot.activeSelf)
+            return;
 
         var playerObjects = FindObjectsOfType<Player>();
         int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
@@ -41,7 +55,7 @@ public class TargetSelectionUI : MonoBehaviour
             bool interactable =
                 ps.IsAlive &&
                 !ps.IsProtected &&
-                (allowSelfTarget || seat != localSeat); //here goes if the card played is 3, he cant interact with himself
+                (allowSelfTarget || seat != localSeat);
 
             var ui = Instantiate(playerTogglePrefab, playerToggleContainer);
 
@@ -55,8 +69,12 @@ public class TargetSelectionUI : MonoBehaviour
             );
         }
 
+        // panelRoot MUST stay active here
         panelRoot.SetActive(true);
     }
+
+
+
 
     // ===============================
     // CALLBACKS
@@ -88,6 +106,72 @@ public class TargetSelectionUI : MonoBehaviour
         Debug.Log("[UI] Card guess set to: " + selectedCardGuess);
     }
 
+    private bool ConfigureForCard(int cardId)
+    {
+        _currentCardId = cardId;
+
+        // Hide everything by default
+        playerSection.SetActive(false);
+        cardSection.SetActive(false);
+        playerSectionText.gameObject.SetActive(false);
+        cardSectionText.gameObject.SetActive(false);
+        panelRoot.SetActive(false);
+
+        bool allowSelfTarget = true;
+
+        switch (cardId)
+        {
+            case 0: // Spy
+            case 4: // Handmaiden
+            case 8: // Countess
+            case 9: // Princess
+                PlayWithoutContext();
+                return false;
+
+            case 1: // Guard
+                panelRoot.SetActive(true);
+                playerSection.SetActive(true);
+                playerSectionText.gameObject.SetActive(true);
+                cardSection.SetActive(true);
+                cardSectionText.gameObject.SetActive(true);
+                allowSelfTarget = false;
+                break;
+
+            case 2: // Priest
+                panelRoot.SetActive(true);
+                playerSection.SetActive(true);
+                playerSectionText.gameObject.SetActive(true);
+                break;
+
+            case 3: // Baron
+                panelRoot.SetActive(true);
+                playerSection.SetActive(true);
+                playerSectionText.gameObject.SetActive(true);
+                allowSelfTarget = false;
+                break;
+
+            case 5: // Prince
+                panelRoot.SetActive(true);
+                playerSection.SetActive(true);
+                playerSectionText.gameObject.SetActive(true);
+                allowSelfTarget = true;
+                break;
+
+            case 6: // Chancellor
+                    // No UI YET
+                return false;
+
+            case 7: // King
+                panelRoot.SetActive(true);
+                playerSection.SetActive(true);
+                playerSectionText.gameObject.SetActive(true);
+                allowSelfTarget = false;
+                break;
+        }
+
+        return allowSelfTarget;
+    }
+
 
     // ===============================
     // CONFIRM
@@ -100,12 +184,22 @@ public class TargetSelectionUI : MonoBehaviour
             return;
         }
 
-        GameManager.Instance.LocalPlayerConfirmedTarget(
-            selectedPlayerSeat,
-            selectedCardGuess
-        );
+        if (_currentCardId == 1) // Guard (needs target + guess)
+        {
+            GameManager.Instance.LocalPlayerConfirmedTarget(selectedPlayerSeat, selectedCardGuess);
+        }
+        else
+        {
+            // Priest, Baron, Prince, King → target-only
+            GameManager.Instance.LocalPlayerPlayTargetOnly(selectedPlayerSeat);
+        }
+
 
         panelRoot.SetActive(false);
+    }
+    private void PlayWithoutContext()
+    {
+        GameManager.Instance.LocalPlayerPlayNoContext();
     }
 
     private void Clear()

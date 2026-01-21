@@ -10,6 +10,8 @@ public class TableUIController : MonoBehaviour
 
     [Header("Start Game")]
     [SerializeField] private Button startGameButton;
+    [Header("Restart Game")]
+    [SerializeField] private Button restartGameButton;
 
     [Header("Hand Layout Groups")]
     [SerializeField] private HorizontalLayoutGroup[] handGroups = new HorizontalLayoutGroup[6];
@@ -52,18 +54,36 @@ public class TableUIController : MonoBehaviour
 
         // Start button = HOST ONLY
         if (BasicSpawner.Instance.Runner.IsServer)
+        {
             startGameButton.gameObject.SetActive(true);
+        }
+
         else
             startGameButton.gameObject.SetActive(false);
 
         startGameButton.onClick.AddListener(OnStartGameClicked);
+        restartGameButton.onClick.AddListener(OnRestartGameClicked);
     }
 
     private void OnStartGameClicked()
     {
         GameManager.Instance.BeginMatch();
         startGameButton.gameObject.SetActive(false);
+        if (BasicSpawner.Instance.Runner.IsServer)
+        {
+            restartGameButton.gameObject.SetActive(true);
+        }
     }
+
+    public void OnRestartGameClicked()
+    {
+        if (!BasicSpawner.Instance.Runner.IsServer)
+            return;
+
+        GameManager.Instance.RestartMatch();
+
+    }
+
 
     // ============================================================
     // HAND UI
@@ -89,6 +109,9 @@ public class TableUIController : MonoBehaviour
 
     public void SetHandCount(int seatIndex, int count)
     {
+        if (seatIndex == BasicSpawner.PlayerData.LocalSeatIndex)
+            return;
+
         int localSeatIndex = GlobalToLocalSeat(seatIndex);
         ClearHand(localSeatIndex);
 
@@ -96,13 +119,12 @@ public class TableUIController : MonoBehaviour
         {
             var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
             cv.Setup(new Card(CardType.CardBack));
-
             cv.IsLocalCard = false;
             cv.SetInteractable(false);
-
             handCards[localSeatIndex].Add(cv);
         }
     }
+
 
     public void ShowAnnouncement(string msg)
     {
@@ -159,6 +181,7 @@ public class TableUIController : MonoBehaviour
             handCards[i].Clear();
             playedCards[i].Clear();
         }
+        announcementText.gameObject.SetActive(false);
     }
 
     public static int GlobalToLocalSeat(int globalSeat)

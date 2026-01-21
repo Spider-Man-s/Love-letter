@@ -8299,7 +8299,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2fafe2cfe61f6974895a912c3755e8f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_AllowSwitchOff: 1
+  m_AllowSwitchOff: 0
 --- !u!1 &1202237269
 GameObject:
   m_ObjectHideFlags: 0
@@ -12949,8 +12949,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 37, y: 423}
-  m_SizeDelta: {x: 1165.1498, y: 108.2226}
+  m_AnchoredPosition: {x: 18.4955, y: 423}
+  m_SizeDelta: {x: 1279.3954, y: 108.2226}
   m_Pivot: {x: 0.5, y: 0.50000006}
 --- !u!114 &1935775300
 MonoBehaviour:
@@ -12972,7 +12972,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Who has the 9?
+  m_text: Who has the princess?
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 125cb55b44b24c4393181402bc6200e6, type: 2}
   m_sharedMaterial: {fileID: 2100000, guid: 125cb55b44b24c4393181402bc6200e6, type: 2}

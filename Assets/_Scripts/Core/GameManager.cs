@@ -11,7 +11,9 @@ public class GameManager : NetworkBehaviour
     public TurnState CurrentTurnState;
     public List<PlayerState> Players = new();
     public Deck Deck;
-    private CardType? _pendingCardType;
+
+    private CardType _pendingCardType;
+    private bool _hasPendingCard;
 
 
     private DeckView deckView;
@@ -353,13 +355,93 @@ public class GameManager : NetworkBehaviour
 
         Debug.Log($"[GM] Local player at seat {seatIndex} clicked {card.Type}");
 
-        TargetSelectionUI.Instance.OpenForPlayers();
-
-        // Store last played card temporarily
+        // Save only the card type
         _pendingCardType = card.Type;
+        _hasPendingCard = true;
 
+        // Open UI
+        TargetSelectionUI.Instance.OpenForPlayers((int)_pendingCardType);
     }
 
+    /*
+        public void LocalPlayerConfirmedTarget(int targetSeat, CardType guess)
+        {
+            int globalSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+            Debug.Log($"[GM] Local seat {globalSeat} confirmed target {targetSeat}, guess {guess}");
+
+            if (_pendingCardType == null)
+            {
+                Debug.LogError("No pending card to play!");
+                return;
+            }
+
+            // send RPC to server
+            RPC_RequestPlayCardContext(globalSeat, targetSeat, (int)guess);
+
+            _pendingCardType = null; // clear
+        }
+    */
+    public void LocalPlayerPlayNoContext()
+    {
+        if (!_hasPendingCard)
+        {
+            Debug.LogError("No pending card to play (no-context).");
+            return;
+        }
+
+        int seat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        RPC_RequestPlayCardContext(
+            seat,
+            (int)_pendingCardType,
+            -1,      // no target
+            -1       // no guess
+        );
+
+        _hasPendingCard = false;
+    }
+
+    public void LocalPlayerPlayTargetOnly(int targetSeat)
+    {
+        if (!_hasPendingCard)
+        {
+            Debug.LogError("No pending card to play (target only).");
+            return;
+        }
+
+        int seat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        RPC_RequestPlayCardContext(
+            seat,
+            (int)_pendingCardType,
+            targetSeat,
+            -1
+        );
+
+        _hasPendingCard = false;
+    }
+
+
+    public void LocalPlayerConfirmedTarget(int targetSeat, CardType guess)
+    {
+        if (!_hasPendingCard)
+        {
+            Debug.LogError("No pending card to play (full context).");
+            return;
+        }
+
+        int seat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        RPC_RequestPlayCardContext(
+            seat,
+            (int)_pendingCardType,
+            targetSeat,
+            (int)guess
+        );
+
+        _hasPendingCard = false;
+    }
 
 
     public bool CanPlayerPlayThisCard(CardView cardView)
@@ -414,53 +496,89 @@ public class GameManager : NetworkBehaviour
 
         StartTurn();
     }
-    public void LocalPlayerConfirmedTarget(int targetSeat, CardType guess)
+
+
+
+
+    public void RestartMatch()
     {
-        int globalSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+        Debug.Log("=== RESTART MATCH ===");
 
-        Debug.Log($"[GM] Local seat {globalSeat} confirmed target {targetSeat}, guess {guess}");
+        // Reset turn state
+        CurrentTurnState = TurnState.WaitingForDraw;
+        CurrentPlayerIndex = 0;
 
-        if (_pendingCardType == null)
+        // Recreate internal player states (reset IsAlive, Reset hands)
+        for (int i = 0; i < Players.Count; i++)
         {
-            Debug.LogError("No pending card to play!");
-            return;
+            Players[i] = new PlayerState(i);
         }
 
-        // send RPC to server
-        RPC_RequestPlayCardWithContext(globalSeat, targetSeat, (int)guess);
+        // Recreate and reshuffle deck
+        Deck = new Deck(CardDatabase.CreateDeck());
+        Deck.Shuffle();
 
-        _pendingCardType = null; // clear
+        // Give one card to each player
+        DealInitialCards();
+
+        // Clear UI for every client
+        RPC_ResetTableUI();
+
+        // Tell clients the new deck count
+        RPC_SendDeckCount(Deck.Count);
+
+        // Send new hands to each player’s owner
+        StartCoroutine(DelayedSendHands());
+
+        // Begin first turn
+        StartCoroutine(WaitAndStartFirstTurn());
     }
 
 
 
+    // ====================================================================
+    // RPCs     
+    //
+    // ===================================================================
 
-    // RPCs (unchanged)
+
+
+
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ResetTableUI()
+    {
+        TableUIController.Instance.ResetTable();
+    }
+
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RequestPlayCardWithContext(int seatIndex, int targetSeat, int guessedType)
+    public void RPC_RequestPlayCardContext(int seatIndex, int cardType, int targetSeat, int guessedType)
     {
-        Debug.Log($"[Server] Player {seatIndex} plays with context -> target: {targetSeat}, guess: {(CardType)guessedType}");
+        Debug.Log($"[Server] Context RPC: p{seatIndex} card={cardType}, target={targetSeat}, guess={guessedType}");
 
-        var player = Players[seatIndex];
-        var card = player.Hand.FirstOrDefault(c => c.Type == (CardType)_pendingCardType);
-
+        // Find THIS player's matching card
+        var card = Players[seatIndex].Hand.Find(c => c.Type == (CardType)cardType);
 
         if (card == null)
         {
-            Debug.LogError("Server: No card found to play.");
+            Debug.LogError("Server ERROR: Card type not found in player's hand!");
             return;
         }
 
+        // Build context
         var ctx = new EffectContext
         {
-            TargetPlayerId = targetSeat,
+            TargetPlayerId = targetSeat >= 0 ? targetSeat : null,
             GuessedCard = guessedType >= 0 ? (CardType?)guessedType : null
         };
 
-
+        // Play it
         PlayCard(seatIndex, card, ctx);
     }
+
+
+
 
 
 
@@ -509,29 +627,35 @@ public class GameManager : NetworkBehaviour
         PlayCard(seatIndex, card, new EffectContext());
     }
 
-
-
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_CardPlayed(int seatIndex, int cardType, int newHandCount)
     {
-        // seatIndex is GLOBAL — do NOT convert here
-        TableUIController.Instance.AddPlayedCard(
-            seatIndex,
-            new Card((CardType)cardType)
-        );
+        int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
 
-        TableUIController.Instance.SetHandCount(
-            seatIndex,
-            newHandCount
-        );
+        // Everyone: show played card
+        TableUIController.Instance.AddPlayedCard(seatIndex, new Card((CardType)cardType));
+
+        if (seatIndex == localSeat)
+        {
+            // LOCAL PLAYER => show real hand
+            var realHand = GameManager.Instance.GetPlayer(seatIndex).Hand;
+            TableUIController.Instance.SetLocalHand(seatIndex, realHand);
+        }
+        else
+        {
+            // OTHERS => only show card count
+            TableUIController.Instance.SetHandCount(seatIndex, newHandCount);
+        }
     }
 
 
 
+
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-    private void RPC_OpenTargetSelection()
+    private void RPC_OpenTargetSelection(int cardType)
     {
-        TargetSelectionUI.Instance.OpenForPlayers();
+        TargetSelectionUI.Instance.OpenForPlayers(cardType);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
