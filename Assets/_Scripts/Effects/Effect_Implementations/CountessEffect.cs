@@ -6,5 +6,6 @@ public class CountessEffect : ICardEffect
     {
         // samo log za test, nema dodatnog efekta
         Debug.Log($"Player {sourcePlayerId} played Countess");
+        game.RPC_AnnounceAction($"Player {sourcePlayerId} played Countess");
     }
 }

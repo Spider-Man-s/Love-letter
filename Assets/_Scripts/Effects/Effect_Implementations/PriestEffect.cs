@@ -32,5 +32,7 @@ public class PriestEffect : ICardEffect
 
         var card = target.Hand[0];
         Debug.Log($"Player {sourcePlayerId} looks at Player {target.PlayerId}'s hand: {card}");
+        game.RPC_AnnounceAction(
+    $"Player {sourcePlayerId} played Priest and looked at Player {target.PlayerId}'s hand.");
     }
 }

@@ -27,5 +27,7 @@ public class KingEffect : ICardEffect
         target.Hand.AddRange(temp);
 
         Debug.Log($"Player {sourcePlayerId} and Player {target.PlayerId} swapped hands");
+        game.RPC_AnnounceAction(
+    $"Player {sourcePlayerId} played King and swapped hands with Player {target.PlayerId}.");
     }
 }

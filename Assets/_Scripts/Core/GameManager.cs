@@ -339,7 +339,8 @@ public class GameManager : NetworkBehaviour
             return;
 
         player.RemoveCard(card);
-        RPC_CardPlayed(playerId, (int)card.Type);
+        RPC_CardPlayed(playerId, (int)card.Type, player.Hand.Count);
+
         CurrentTurnState = TurnState.Resolving;
 
         ResolveCard(card, playerId, context);
@@ -415,9 +416,9 @@ public class GameManager : NetworkBehaviour
     }
     public void LocalPlayerConfirmedTarget(int targetSeat, CardType guess)
     {
-        int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+        int globalSeat = BasicSpawner.PlayerData.LocalSeatIndex;
 
-        Debug.Log($"[GM] Local seat {localSeat} confirmed target {targetSeat}, guess {guess}");
+        Debug.Log($"[GM] Local seat {globalSeat} confirmed target {targetSeat}, guess {guess}");
 
         if (_pendingCardType == null)
         {
@@ -426,7 +427,7 @@ public class GameManager : NetworkBehaviour
         }
 
         // send RPC to server
-        RPC_RequestPlayCardWithContext(localSeat, targetSeat, (int)guess);
+        RPC_RequestPlayCardWithContext(globalSeat, targetSeat, (int)guess);
 
         _pendingCardType = null; // clear
     }
@@ -436,7 +437,7 @@ public class GameManager : NetworkBehaviour
 
     // RPCs (unchanged)
 
-    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_RequestPlayCardWithContext(int seatIndex, int targetSeat, int guessedType)
     {
         Debug.Log($"[Server] Player {seatIndex} plays with context -> target: {targetSeat}, guess: {(CardType)guessedType}");
@@ -508,25 +509,38 @@ public class GameManager : NetworkBehaviour
         PlayCard(seatIndex, card, new EffectContext());
     }
 
+
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_CardPlayed(int seatIndex, int cardType)
+    private void RPC_CardPlayed(int seatIndex, int cardType, int newHandCount)
     {
+        // seatIndex is GLOBAL — do NOT convert here
         TableUIController.Instance.AddPlayedCard(
             seatIndex,
             new Card((CardType)cardType)
         );
 
-        // Update hand counts visually
         TableUIController.Instance.SetHandCount(
             seatIndex,
-            Players[seatIndex].Hand.Count
+            newHandCount
         );
     }
+
+
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
     private void RPC_OpenTargetSelection()
     {
         TargetSelectionUI.Instance.OpenForPlayers();
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_AnnounceAction(string message)
+    {
+        Debug.Log("[ANNOUNCE] " + message);
+
+        // TODO: Send message to UI popup
+        TableUIController.Instance.ShowAnnouncement(message);
+    }
 
 }

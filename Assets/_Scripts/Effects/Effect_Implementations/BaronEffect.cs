@@ -33,14 +33,20 @@ public class BaronEffect : ICardEffect
         if (sourceCard.Value > targetCard.Value)
         {
             game.EliminatePlayer(target.PlayerId);
+            game.RPC_AnnounceAction(
+        $"Player {sourcePlayerId} played Baron and eliminated Player {target.PlayerId}.");
         }
         else if (sourceCard.Value < targetCard.Value)
         {
             game.EliminatePlayer(sourcePlayerId);
+            game.RPC_AnnounceAction(
+        $"Player {sourcePlayerId} played Baron and was eliminated by Player {target.PlayerId}.");
         }
         else
         {
             Debug.Log("Baron tie – no elimination");
+            game.RPC_AnnounceAction(
+        $"Player {sourcePlayerId} played Baron against Player {target.PlayerId} but it was a tie.");
         }
     }
 }

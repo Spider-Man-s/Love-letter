@@ -7,5 +7,6 @@ public class PrincessEffect : ICardEffect
         game.EliminatePlayer(sourcePlayerId);
 
         Debug.Log($"Player {sourcePlayerId} played Princess and is eliminated");
+        game.RPC_AnnounceAction($"Player {sourcePlayerId} played Princess and is eliminated.");
     }
 }

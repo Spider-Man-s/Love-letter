@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 using LoveLetter.Networking;
+using TMPro;
 public class TableUIController : MonoBehaviour
 {
     public static TableUIController Instance;
@@ -18,6 +19,8 @@ public class TableUIController : MonoBehaviour
 
     [Header("Card Prefab")]
     [SerializeField] private CardView cardPrefab;
+    [Header("Announcement Text")]
+    [SerializeField] private TextMeshProUGUI announcementText;
 
     private List<CardView>[] handCards;
     private List<CardView>[] playedCards;
@@ -26,6 +29,7 @@ public class TableUIController : MonoBehaviour
     {
         Debug.Log("[UI] TableUIController Awake ON: " + gameObject.name);
         Instance = this;
+        ShowAnnouncement("");
     }
 
     private IEnumerator Start()
@@ -100,7 +104,12 @@ public class TableUIController : MonoBehaviour
         }
     }
 
+    public void ShowAnnouncement(string msg)
+    {
+        announcementText.text = msg;
+        announcementText.gameObject.SetActive(true);
 
+    }
 
 
     private void ClearHand(int seatIndex)
@@ -115,12 +124,15 @@ public class TableUIController : MonoBehaviour
     // PLAYED CARDS UI
     // ============================================================
 
-    public void AddPlayedCard(int seatIndex, Card card)
+    public void AddPlayedCard(int globalSeatIndex, Card card)
     {
-        var cv = Instantiate(cardPrefab, playedGroups[seatIndex].transform, false);
+        int localSeatIndex = GlobalToLocalSeat(globalSeatIndex);
+
+        var cv = Instantiate(cardPrefab, playedGroups[localSeatIndex].transform, false);
         cv.Setup(card);
-        playedCards[seatIndex].Add(cv);
+        playedCards[localSeatIndex].Add(cv);
     }
+
 
     public void ClearPlayed(int seatIndex)
     {

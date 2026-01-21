@@ -8,5 +8,6 @@ public class HandmaidenEffect : ICardEffect
         player.IsProtected = true;
 
         Debug.Log($"Player {sourcePlayerId} is protected until next turn");
+        game.RPC_AnnounceAction($"Player {sourcePlayerId} is protected until next turn.");
     }
 }

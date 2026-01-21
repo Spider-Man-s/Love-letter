@@ -11,5 +11,7 @@ public class PrinceEffect : ICardEffect
         }
 
         game.ForceDiscardAndDraw(context.TargetPlayerId.Value);
+        game.RPC_AnnounceAction(
+    $"Player {sourcePlayerId} played Prince on Player {context.TargetPlayerId.Value}.");
     }
 }
