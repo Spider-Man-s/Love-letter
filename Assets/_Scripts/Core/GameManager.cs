@@ -14,8 +14,6 @@ public class GameManager : NetworkBehaviour
 
     private CardType _pendingCardType;
     private bool _hasPendingCard;
-
-
     private DeckView deckView;
     public DeckView DeckView
     {
@@ -30,12 +28,21 @@ public class GameManager : NetworkBehaviour
     public int CurrentPlayerIndex;
     private Dictionary<PlayerRef, int> seatByPlayer = new();
 
+    private int[] _victoryTokens = new int[6];
+    private int _lastRoundWinner = -1;
+    private bool _roundHasEnded = false;
+
+
     public override void Spawned()
     {
         Instance = this;
 
         if (seatByPlayer == null)
             seatByPlayer = new Dictionary<PlayerRef, int>();
+
+        TableUIController.Instance.ResetVictoryCounters();
+        TableUIController.Instance.ResetTable();
+
     }
 
     private void Awake()
@@ -162,12 +169,41 @@ public class GameManager : NetworkBehaviour
         int playerCount = seatByPlayer.Count;
 
         StartGame(playerCount);
-
         RPC_StartMatch(Deck.Count);
+        RPC_ShowCounters(playerCount);
+
 
         StartCoroutine(WaitAndStartFirstTurn());
         StartCoroutine(DelayedSendHands());
+        _roundHasEnded = false;
     }
+
+    public void RestartMatch()
+    {
+        Debug.Log("=== RESTART MATCH ===");
+
+        CurrentTurnState = TurnState.WaitingForDraw;
+        CurrentPlayerIndex = _lastRoundWinner >= 0 ? _lastRoundWinner : 0;
+
+        for (int i = 0; i < Players.Count; i++)
+            Players[i] = new PlayerState(i);
+
+        Deck = new Deck(CardDatabase.CreateDeck());
+        Deck.Shuffle();
+        DealInitialCards();
+
+        RPC_ResetTableUI();
+
+        int playerCount = seatByPlayer.Count;
+        RPC_ShowCounters(playerCount);
+
+        RPC_SendDeckCount(Deck.Count);
+        StartCoroutine(DelayedSendHands());
+        StartCoroutine(WaitAndStartFirstTurn());
+        _roundHasEnded = false;
+    }
+
+
 
     private System.Collections.IEnumerator WaitAndStartFirstTurn()
     {
@@ -235,6 +271,8 @@ public class GameManager : NetworkBehaviour
         player.Hand.Clear();
 
         Debug.Log($"Player {playerId} is eliminated");
+        CheckRoundEnd();
+
     }
 
     public Card ForceDiscardAndDraw(int targetPlayerId)
@@ -320,7 +358,11 @@ public class GameManager : NetworkBehaviour
         player.DrawCard(drawnCard);
 
         SyncDeck();
-
+        if (Deck.Count == 0)
+        {
+            CheckRoundEnd();
+            return;
+        }
         CurrentTurnState = TurnState.WaitingForPlay;
     }
 
@@ -363,25 +405,7 @@ public class GameManager : NetworkBehaviour
         TargetSelectionUI.Instance.OpenForPlayers((int)_pendingCardType);
     }
 
-    /*
-        public void LocalPlayerConfirmedTarget(int targetSeat, CardType guess)
-        {
-            int globalSeat = BasicSpawner.PlayerData.LocalSeatIndex;
 
-            Debug.Log($"[GM] Local seat {globalSeat} confirmed target {targetSeat}, guess {guess}");
-
-            if (_pendingCardType == null)
-            {
-                Debug.LogError("No pending card to play!");
-                return;
-            }
-
-            // send RPC to server
-            RPC_RequestPlayCardContext(globalSeat, targetSeat, (int)guess);
-
-            _pendingCardType = null; // clear
-        }
-    */
     public void LocalPlayerPlayNoContext()
     {
         if (!_hasPendingCard)
@@ -452,8 +476,11 @@ public class GameManager : NetworkBehaviour
         // Must be local seat’s turn
         if (cardView.CardData == null)
             return false;
-        if (BasicSpawner.PlayerData.LocalSeatIndex != CurrentPlayerIndex)
+        int myGlobalSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        if (myGlobalSeat != CurrentPlayerIndex)
             return false;
+
 
         return true;
     }
@@ -483,7 +510,10 @@ public class GameManager : NetworkBehaviour
     private void EndTurn()
     {
         CurrentTurnState = TurnState.TurnEnded;
-        AdvanceTurn();
+        CheckRoundEnd();
+
+        if (CurrentTurnState == TurnState.TurnEnded)
+            AdvanceTurn();
     }
 
     private void AdvanceTurn()
@@ -498,41 +528,63 @@ public class GameManager : NetworkBehaviour
     }
 
 
-
-
-    public void RestartMatch()
+    private void CheckRoundEnd()
     {
-        Debug.Log("=== RESTART MATCH ===");
-
-        // Reset turn state
-        CurrentTurnState = TurnState.WaitingForDraw;
-        CurrentPlayerIndex = 0;
-
-        // Recreate internal player states (reset IsAlive, Reset hands)
-        for (int i = 0; i < Players.Count; i++)
+        // A) Only one player alive
+        int aliveCount = Players.Count(p => p.IsAlive);
+        if (aliveCount == 1)
         {
-            Players[i] = new PlayerState(i);
+            int winner = Players.First(p => p.IsAlive).PlayerId;
+            EndRound(winner);
+            return;
         }
 
-        // Recreate and reshuffle deck
-        Deck = new Deck(CardDatabase.CreateDeck());
-        Deck.Shuffle();
+        // B) Deck is empty — compare highest hand card
+        if (Deck.Count == 0)
+        {
+            // Convert CardType to int before comparing
+            int bestValue = Players
+                .Where(p => p.IsAlive)
+                .Max(p => (int)p.Hand[0].Type);
 
-        // Give one card to each player
-        DealInitialCards();
+            var winners = Players
+                .Where(p => p.IsAlive && (int)p.Hand[0].Type == bestValue)
+                .Select(p => p.PlayerId)
+                .ToList();
 
-        // Clear UI for every client
-        RPC_ResetTableUI();
-
-        // Tell clients the new deck count
-        RPC_SendDeckCount(Deck.Count);
-
-        // Send new hands to each player’s owner
-        StartCoroutine(DelayedSendHands());
-
-        // Begin first turn
-        StartCoroutine(WaitAndStartFirstTurn());
+            int winnerForStart = winners[0];
+            EndRound(winnerForStart);
+            return;
+        }
     }
+
+
+    private void EndRound(int winnerSeat)
+    {
+        if (_roundHasEnded)
+            return;
+
+        _roundHasEnded = true;
+        Debug.Log("=== ROUND ENDED — Winner = " + winnerSeat + " ===");
+
+        _lastRoundWinner = winnerSeat;
+        _victoryTokens[winnerSeat]++;
+
+        // Broadcast winner and update UI
+        RPC_RoundEnded(winnerSeat);
+        RPC_UpdateVictoryCounter(winnerSeat, _victoryTokens[winnerSeat]);
+
+        // Stop game flow
+        CurrentTurnState = TurnState.TurnEnded;
+    }
+
+
+    public void ResetVictoryTokens()
+    {
+        for (int i = 0; i < _victoryTokens.Length; i++)
+            _victoryTokens[i] = 0;
+    }
+
 
 
 
@@ -541,8 +593,11 @@ public class GameManager : NetworkBehaviour
     //
     // ===================================================================
 
-
-
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_RoundEnded(int winnerSeat)
+    {
+        TableUIController.Instance.ShowRoundWinner(winnerSeat);
+    }
 
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -578,6 +633,11 @@ public class GameManager : NetworkBehaviour
     }
 
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_ResetVictoryCounters()
+    {
+        TableUIController.Instance.ResetVictoryCounters();
+    }
 
 
 
@@ -649,7 +709,17 @@ public class GameManager : NetworkBehaviour
     }
 
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_ShowCounters(int playerCount)
+    {
+        TableUIController.Instance.ShowActivePlayerCounters(playerCount);
+    }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_UpdateVictoryCounter(int winnerSeat, int score)
+    {
+        TableUIController.Instance.UpdateVictoryCounter(winnerSeat, score);
+    }
 
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]

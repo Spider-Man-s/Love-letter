@@ -12,12 +12,18 @@ public class TableUIController : MonoBehaviour
     [SerializeField] private Button startGameButton;
     [Header("Restart Game")]
     [SerializeField] private Button restartGameButton;
+    [SerializeField] private Button nextRoundButton;
 
     [Header("Hand Layout Groups")]
     [SerializeField] private HorizontalLayoutGroup[] handGroups = new HorizontalLayoutGroup[6];
 
     [Header("Played Layout Groups")]
     [SerializeField] private HorizontalLayoutGroup[] playedGroups = new HorizontalLayoutGroup[6];
+
+    [Header("Victory Counters")]
+    [SerializeField] private GameObject[] victoryCounterRoots = new GameObject[6];
+    [SerializeField] private TextMeshProUGUI[] victoryCounterTexts = new TextMeshProUGUI[6];
+
 
     [Header("Card Prefab")]
     [SerializeField] private CardView cardPrefab;
@@ -36,7 +42,6 @@ public class TableUIController : MonoBehaviour
 
     private IEnumerator Start()
     {
-
 
         handCards = new List<CardView>[6];
         playedCards = new List<CardView>[6];
@@ -63,6 +68,8 @@ public class TableUIController : MonoBehaviour
 
         startGameButton.onClick.AddListener(OnStartGameClicked);
         restartGameButton.onClick.AddListener(OnRestartGameClicked);
+        nextRoundButton.onClick.AddListener(OnNextRoundClicked);
+
     }
 
     private void OnStartGameClicked()
@@ -80,8 +87,30 @@ public class TableUIController : MonoBehaviour
         if (!BasicSpawner.Instance.Runner.IsServer)
             return;
 
+        GameManager.Instance.ResetVictoryTokens();
+        GameManager.Instance.RPC_ResetVictoryCounters();
         GameManager.Instance.RestartMatch();
 
+    }
+
+
+    public void OnNextRoundClicked()
+    {
+        if (!BasicSpawner.Instance.Runner.IsServer)
+            return;
+
+        nextRoundButton.gameObject.SetActive(false);
+        GameManager.Instance.RestartMatch();
+    }
+
+    public void ShowRoundWinner(int winnerSeat)
+    {
+        GameManager.Instance.RPC_AnnounceAction($"Player {winnerSeat + 1} wins the round!");
+        announcementText.gameObject.SetActive(true);
+
+        // Host sees Next Round button
+        if (BasicSpawner.Instance.Runner.IsServer)
+            nextRoundButton.gameObject.SetActive(true);
     }
 
 
@@ -163,6 +192,24 @@ public class TableUIController : MonoBehaviour
 
         playedCards[seatIndex].Clear();
     }
+    public void ShowActivePlayerCounters(int playerCount)
+    {
+        for (int globalSeat = 0; globalSeat < victoryCounterRoots.Length; globalSeat++)
+        {
+            int localSeat = GlobalToLocalSeat(globalSeat);
+
+            bool active = globalSeat < playerCount;
+            victoryCounterRoots[localSeat].SetActive(active);
+        }
+    }
+
+    public void UpdateVictoryCounter(int globalSeat, int newValue)
+    {
+        int localSeat = GlobalToLocalSeat(globalSeat);
+        victoryCounterTexts[localSeat].text = newValue.ToString();
+    }
+
+
 
     // ============================================================
     // FULL RESET
@@ -180,9 +227,19 @@ public class TableUIController : MonoBehaviour
 
             handCards[i].Clear();
             playedCards[i].Clear();
+
         }
         announcementText.gameObject.SetActive(false);
     }
+    public void ResetVictoryCounters()
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            victoryCounterTexts[i].text = "0";
+            victoryCounterRoots[i].SetActive(false);
+        }
+    }
+
 
     public static int GlobalToLocalSeat(int globalSeat)
     {
