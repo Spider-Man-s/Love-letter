@@ -225,6 +225,17 @@ namespace LoveLetter.Networking
         {
             return _spawnedPlayers.TryGetValue(pr, out var obj) ? obj : null;
         }
+        public PlayerRef GetPlayerRefBySeat(int seatIndex)
+        {
+            foreach (var kvp in GameManager.Instance.GetSeatDictionary())
+            {
+                if (kvp.Value == seatIndex)
+                    return kvp.Key;
+            }
+
+            Debug.LogError($"[BasicSpawner] No PlayerRef found for seat {seatIndex}");
+            return PlayerRef.None;
+        }
 
 
 

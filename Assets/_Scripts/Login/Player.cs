@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 using LoveLetter.Networking;
+using System.Linq;
 
 public class Player : NetworkBehaviour
 {
@@ -122,13 +123,14 @@ public class Player : NetworkBehaviour
         AvatarId = avatarId;
     }
 
-    // called from GameManager → send local-visible cards only to the right player
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
     public void RPC_SendLocalHand(int seatIndex, int[] cardTypes)
     {
-        var cards = new List<Card>();
-        foreach (int ct in cardTypes)
-            cards.Add(new Card((CardType)ct));
+        var cards = cardTypes
+            .Select(t => new Card((CardType)t))
+            .ToList();
+
+        Debug.Log($"[CLIENT] Received hand update for seat {seatIndex}. Cards: {string.Join(",", cardTypes)}");
 
         TableUIController.Instance.SetLocalHand(seatIndex, cards);
     }

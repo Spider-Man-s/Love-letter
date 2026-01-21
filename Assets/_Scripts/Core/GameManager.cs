@@ -25,7 +25,7 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    public int CurrentPlayerIndex;
+    [Networked] public int CurrentPlayerIndex { get; set; }
     private Dictionary<PlayerRef, int> seatByPlayer = new();
 
     private int[] _victoryTokens = new int[6];
@@ -55,6 +55,18 @@ public class GameManager : NetworkBehaviour
             seatByPlayer = new Dictionary<PlayerRef, int>();
         //  Debug.Log($"GameManager Awake | NetId: {Object?.Id} | InstanceHash: {GetHashCode()}");
     }
+
+    public override void FixedUpdateNetwork()
+    {
+        // Host only
+        if (!Object.HasStateAuthority)
+            return;
+
+        // Ensure CurrentPlayerIndex stays valid
+        if (CurrentPlayerIndex < 0 || CurrentPlayerIndex >= Players.Count)
+            CurrentPlayerIndex = 0;
+    }
+
 
     #region test method (unchanged)
     private void Start() { }
@@ -88,6 +100,9 @@ public class GameManager : NetworkBehaviour
             };
 
             PlayCard(current.PlayerId, cardToPlay, context);
+            if (Object.HasStateAuthority)
+                AdvanceTurn();
+
         }
 
         var winner = Players.Find(p => p.IsAlive);
@@ -351,20 +366,36 @@ public class GameManager : NetworkBehaviour
     {
         if (CurrentTurnState != TurnState.WaitingForDraw)
             return;
+        if (!Object.HasStateAuthority)
+            return;
 
         var player = GetCurrentPlayer();
         var drawnCard = Deck.Draw();
 
         player.DrawCard(drawnCard);
 
+        PlayerRef owner = BasicSpawner.Instance.GetPlayerRefBySeat(CurrentPlayerIndex);
+        NetworkObject ownerObj = BasicSpawner.Instance.GetPlayerObject(owner);
+        Player ownerComponent = ownerObj.GetComponent<Player>();
+
+
+        int[] cardTypes = player.Hand.Select(c => (int)c.Type).ToArray();
+        ownerComponent.RPC_SendLocalHand(CurrentPlayerIndex, cardTypes);
+
+        // Everyone else sees card count
+        RPC_SendHandCount(CurrentPlayerIndex, player.Hand.Count);
+
         SyncDeck();
+
         if (Deck.Count == 0)
         {
             CheckRoundEnd();
             return;
         }
+
         CurrentTurnState = TurnState.WaitingForPlay;
     }
+
 
     public void PlayCard(int playerId, Card card, EffectContext context)
     {
@@ -518,12 +549,18 @@ public class GameManager : NetworkBehaviour
 
     private void AdvanceTurn()
     {
+        if (!Object.HasStateAuthority)
+            return;
+
+        int next = CurrentPlayerIndex;
+
         do
         {
-            CurrentPlayerIndex = (CurrentPlayerIndex + 1) % Players.Count;
+            next = (next + 1) % Players.Count;
         }
-        while (!Players[CurrentPlayerIndex].IsAlive);
+        while (!Players[next].IsAlive);
 
+        CurrentPlayerIndex = next; // SAFE: inside StateAuthority code path
         StartTurn();
     }
 
@@ -585,6 +622,10 @@ public class GameManager : NetworkBehaviour
             _victoryTokens[i] = 0;
     }
 
+    public Dictionary<PlayerRef, int> GetSeatDictionary()
+    {
+        return seatByPlayer;
+    }
 
 
 
@@ -630,6 +671,8 @@ public class GameManager : NetworkBehaviour
 
         // Play it
         PlayCard(seatIndex, card, ctx);
+
+
     }
 
 
@@ -685,6 +728,8 @@ public class GameManager : NetworkBehaviour
         }
 
         PlayCard(seatIndex, card, new EffectContext());
+
+
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
