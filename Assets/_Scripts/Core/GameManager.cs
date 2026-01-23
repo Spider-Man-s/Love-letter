@@ -430,7 +430,7 @@ public class GameManager : NetworkBehaviour
     {
         int seatIndex = BasicSpawner.PlayerData.LocalSeatIndex;
         var card = cardView.CardData;
-
+        TableUIController.Instance.RemoveLocalCard(cardView);
         Debug.Log($"[GM] Local player at seat {seatIndex} clicked {card.Type}");
 
         // Save only the card type

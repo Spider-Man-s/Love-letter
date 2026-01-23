@@ -139,6 +139,11 @@ public class Player : NetworkBehaviour
 
         Debug.Log($"[CLIENT] Received hand update for seat {seatIndex}. Cards: {string.Join(",", cardTypes)}");
 
+        // FIX: Sync real game state on client
+        GameManager.Instance.GetPlayer(seatIndex).Hand = cards;
+
+        // UI update
         TableUIController.Instance.SetLocalHand(seatIndex, cards);
     }
+
 }

@@ -162,6 +162,12 @@ public class TableUIController : MonoBehaviour
 
     }
 
+    public void RemoveLocalCard(CardView cardView)
+    {
+        int localSeat = 0; // always 0 for local player
+        handCards[localSeat].Remove(cardView);
+        Destroy(cardView.gameObject);
+    }
 
     private void ClearHand(int seatIndex)
     {
