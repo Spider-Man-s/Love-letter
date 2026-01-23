@@ -29,7 +29,7 @@ public class TableUIController : MonoBehaviour
     [SerializeField] private CardView cardPrefab;
     [Header("Announcement Text")]
     [SerializeField] private TextMeshProUGUI announcementText;
-
+    [SerializeField] private TextMeshProUGUI winnerAnnouncementText;
     private List<CardView>[] handCards;
     private List<CardView>[] playedCards;
 
@@ -106,7 +106,7 @@ public class TableUIController : MonoBehaviour
     public void ShowRoundWinner(int winnerSeat)
     {
         GameManager.Instance.RPC_AnnounceAction($"Player {winnerSeat + 1} wins the round!");
-        announcementText.gameObject.SetActive(true);
+        winnerAnnouncementText.gameObject.SetActive(true);
 
         // Host sees Next Round button
         if (BasicSpawner.Instance.Runner.IsServer)
@@ -236,6 +236,7 @@ public class TableUIController : MonoBehaviour
 
         }
         announcementText.gameObject.SetActive(false);
+        winnerAnnouncementText.gameObject.SetActive(false);
     }
     public void ResetVictoryCounters()
     {

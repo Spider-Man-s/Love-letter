@@ -158,6 +158,11 @@ namespace LoveLetter.Networking
 
         public void CreateRoom(string sessionName, int maxPlayers, bool isPrivate)
         {
+            if (!IsLobbyReady)
+            {
+                Debug.LogWarning("[CreateRoom] Cannot create room yet. Lobby not ready.");
+                return;
+            }
             StartGame(GameMode.Host, sessionName, maxPlayers, isPrivate);
         }
 
@@ -242,6 +247,25 @@ namespace LoveLetter.Networking
         {
             _spawnedPlayers[player] = obj;
         }
+        public static bool IsLobbyReady = false;
+
+        public void OnConnectedToServer(NetworkRunner runner)
+        {
+            Debug.Log("[Fusion] Connected to server (NameServer).");
+        }
+
+        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
+        {
+            // This callback only fires after joining the lobby
+            if (!IsLobbyReady)
+            {
+                IsLobbyReady = true;
+                Debug.Log("[Fusion] Lobby ready.");
+            }
+            var sessions = BasicSpawner.Instance.Sessions;
+            sessions.Clear();
+            sessions.AddRange(sessionList);
+        }
 
 
         // ====================================================================
@@ -249,7 +273,6 @@ namespace LoveLetter.Networking
         // ====================================================================
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-        public void OnConnectedToServer(NetworkRunner runner) { }
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
@@ -262,11 +285,5 @@ namespace LoveLetter.Networking
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
 
-        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
-        {
-            var sessions = BasicSpawner.Instance.Sessions;
-            sessions.Clear();
-            sessions.AddRange(sessionList);
-        }
     }
 }

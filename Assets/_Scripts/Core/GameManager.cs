@@ -194,6 +194,7 @@ public class GameManager : NetworkBehaviour
         StartCoroutine(DelayedSendHands());
         StartCoroutine(WaitAndStartFirstTurn());
         _roundHasEnded = false;
+        RPC_UnlockAllPlayers();
     }
 
 
@@ -535,6 +536,7 @@ public class GameManager : NetworkBehaviour
     private void SyncDeck()
     {
         RPC_SendDeckCount(Deck.Count);
+        Deck.Print();
     }
 
     public void StartTurn()
@@ -623,7 +625,8 @@ public class GameManager : NetworkBehaviour
         RPC_UpdateVictoryCounter(winnerSeat, _victoryTokens[winnerSeat]);
 
         // Stop game flow
-        CurrentTurnState = TurnState.TurnEnded;
+
+        DebugDumpState("EndRound");
     }
 
 
@@ -696,9 +699,15 @@ public class GameManager : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_RoundEnded(int winnerSeat)
     {
+        _roundHasEnded = true;
+        CurrentTurnState = TurnState.TurnEnded;
         TableUIController.Instance.ShowRoundWinner(winnerSeat);
     }
-
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_UnlockAllPlayers()
+    {
+        _roundHasEnded = false;
+    }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_ResetTableUI()

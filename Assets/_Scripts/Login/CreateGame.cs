@@ -17,10 +17,10 @@ public class CreateGame : MonoBehaviour
     [SerializeField] private GameObject sessionsMenu;
     private const string _chars = "abcdefghijklmnoprstuzv";
     private string sessionName = null;
+    private string randWord = "";
 
     private void Awake()
     {
-        string randWord = "";
         for (int i = 0; i < 8; i++) randWord += _chars[Random.Range(0, _chars.Length - 1)];
         autoFillGameName.text = randWord;
     }
@@ -33,14 +33,15 @@ public class CreateGame : MonoBehaviour
     private void Update()
     {
         playerCountText.text = Mathf.RoundToInt(playerCountSlider.value).ToString() + "/6";
+        createButton.interactable = BasicSpawner.IsLobbyReady;
     }
 
     private void OnCreateClicked()
     {
+        Debug.Log("[CreateGame] Create button clicked.");
         if (string.IsNullOrEmpty(sessionName))
         {
-            sessionName = autoFillGameName.text;
-            return;
+            sessionName = randWord;
         }
         else
         {

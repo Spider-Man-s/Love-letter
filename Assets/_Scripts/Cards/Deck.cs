@@ -24,5 +24,15 @@ public class Deck
         return cards.Pop();
     }
 
+    public void Print()
+    {
+        string cardsList = "Deck contains:\n";
+        foreach (var card in cards)
+        {
+            cardsList += $"- {card.Type}\n";
+        }
+        UnityEngine.Debug.Log(cardsList);
+    }
+
     public int Count => cards.Count;
 }
