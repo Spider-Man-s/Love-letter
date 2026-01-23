@@ -35,6 +35,9 @@ public class TargetSelectionUI : MonoBehaviour
     public void OpenForPlayers(int cardId)
     {
         Clear();
+        Debug.Log("[UI:TargetSelection] Opening with cardId=" + cardId);
+        GameManager.Instance.DebugDumpState("TargetSelection");
+
 
         // Determine what should be shown
         bool allowSelfTarget = ConfigureForCard(cardId);
@@ -209,5 +212,10 @@ public class TargetSelectionUI : MonoBehaviour
 
         selectedPlayerSeat = -1;
         selectedCardGuess = CardType.Guard;
+    }
+
+    public void Close()
+    {
+        panelRoot.SetActive(false);
     }
 }

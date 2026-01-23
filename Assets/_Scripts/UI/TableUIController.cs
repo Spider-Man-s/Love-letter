@@ -86,7 +86,7 @@ public class TableUIController : MonoBehaviour
     {
         if (!BasicSpawner.Instance.Runner.IsServer)
             return;
-
+        TargetSelectionUI.Instance.Close();
         GameManager.Instance.ResetVictoryTokens();
         GameManager.Instance.RPC_ResetVictoryCounters();
         GameManager.Instance.RestartMatch();

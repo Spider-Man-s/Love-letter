@@ -2,21 +2,14 @@ using Fusion;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
-using System.Collections;
-using System.Collections.Generic;
 using LoveLetter.Networking;
 using System.Linq;
 
 public class Player : NetworkBehaviour
 {
-    [Networked]
-    public int SeatIndex { get; set; }
-
-    [Networked]
-    public NetworkString<_16> PlayerName { get; set; }
-
-    [Networked]
-    public int AvatarId { get; set; }
+    [Networked] public int SeatIndex { get; set; }
+    [Networked] public NetworkString<_16> PlayerName { get; set; }
+    [Networked] public int AvatarId { get; set; }
 
     public bool IsLocal { get; private set; }
 
@@ -35,10 +28,10 @@ public class Player : NetworkBehaviour
 
         IsLocal = Object.HasInputAuthority;
 
-        // Local player sends up their UI identity
         if (IsLocal)
         {
-            BasicSpawner.PlayerData.LocalSeatIndex = SeatIndex;
+            // Delay to ensure authoritative SeatIndex is synced
+            StartCoroutine(UpdateLocalSeatLater());
 
             RPC_SetNameAndAvatar(
                 BasicSpawner.PlayerData.LocalPlayerName,
@@ -50,14 +43,17 @@ public class Player : NetworkBehaviour
         Invoke(nameof(NotifySeatArranger), 0.1f);
     }
 
-
+    private System.Collections.IEnumerator UpdateLocalSeatLater()
+    {
+        yield return null; // Wait 1 frame for SeatIndex to sync from server
+        BasicSpawner.PlayerData.LocalSeatIndex = SeatIndex;
+    }
 
     // ====================================================================
-    // UPDATE LOOP (Fusion 2 Replacement for OnChanged)
+    // UPDATE LOOP (Fusion 2 replacement for OnChanged)
     // ====================================================================
     public override void Render()
     {
-        // detect SeatIndex change manually
         if (SeatIndex != lastSeatIndex)
         {
             lastSeatIndex = SeatIndex;
@@ -72,13 +68,15 @@ public class Player : NetworkBehaviour
         Debug.Log($"[SeatIndex Changed] Player={Object.InputAuthority}, Seat={SeatIndex}");
 
         if (Object.HasInputAuthority)
-            BasicSpawner.PlayerData.LocalSeatIndex = SeatIndex;
+        {
+            // Same as Spawned(): delayed safe update
+            StartCoroutine(UpdateLocalSeatLater());
+        }
     }
 
     // ====================================================================
     // VISUALS
     // ====================================================================
-
     private void UpdateVisuals()
     {
         if (nameLabel != null)
@@ -115,7 +113,6 @@ public class Player : NetworkBehaviour
     // ====================================================================
     // RPCs
     // ====================================================================
-
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_SetNameAndAvatar(string name, int avatarId)
     {

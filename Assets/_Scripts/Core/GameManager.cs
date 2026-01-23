@@ -8,7 +8,8 @@ public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
 
-    public TurnState CurrentTurnState;
+    [Networked] public TurnState CurrentTurnState { get; set; }
+
     public List<PlayerState> Players = new();
     public Deck Deck;
 
@@ -26,7 +27,12 @@ public class GameManager : NetworkBehaviour
     }
 
     [Networked] public int CurrentPlayerIndex { get; set; }
-    private Dictionary<PlayerRef, int> seatByPlayer = new();
+
+
+    [Networked, Capacity(6)]
+    public NetworkArray<int> SeatToRawPlayer { get; } = default;
+
+
 
     private int[] _victoryTokens = new int[6];
     private int _lastRoundWinner = -1;
@@ -37,23 +43,22 @@ public class GameManager : NetworkBehaviour
     {
         Instance = this;
 
-        if (seatByPlayer == null)
-            seatByPlayer = new Dictionary<PlayerRef, int>();
-
+        // Reset UI for new clients
         TableUIController.Instance.ResetVictoryCounters();
         TableUIController.Instance.ResetTable();
 
+
+        if (!Object.HasStateAuthority)
+            return;
+
     }
+
 
     private void Awake()
     {
-        // For host-only editor play
         if (Instance == null)
             Instance = this;
 
-        if (seatByPlayer == null)
-            seatByPlayer = new Dictionary<PlayerRef, int>();
-        //  Debug.Log($"GameManager Awake | NetId: {Object?.Id} | InstanceHash: {GetHashCode()}");
     }
 
     public override void FixedUpdateNetwork()
@@ -67,68 +72,28 @@ public class GameManager : NetworkBehaviour
             CurrentPlayerIndex = 0;
     }
 
-
-    #region test method (unchanged)
-    private void Start() { }
-
-    public void PlayRound(int maxPlayers = 4)
+    public void AssignSeat(PlayerRef player, int seat)
     {
-        Debug.Log("=== NEW ROUND ===");
-
-        Players = new List<PlayerState>();
-        for (int i = 0; i < maxPlayers; i++)
-            Players.Add(new PlayerState(i));
-
-        StartGame(maxPlayers);
-        CurrentPlayerIndex = 0;
-
-        while (Players.FindAll(p => p.IsAlive).Count > 1 && Deck.Count > 0)
-        {
-            StartTurn();
-            var current = GetCurrentPlayer();
-
-            if (!current.IsAlive)
-            {
-                AdvanceTurn();
-                continue;
-            }
-
-            var cardToPlay = ChooseCardToPlay(current);
-            var context = new EffectContext
-            {
-                TargetPlayerId = ChooseTarget(current, cardToPlay)
-            };
-
-            PlayCard(current.PlayerId, cardToPlay, context);
-            if (Object.HasStateAuthority)
-                AdvanceTurn();
-
-        }
-
-        var winner = Players.Find(p => p.IsAlive);
-        if (winner != null)
-            Debug.Log($"=== Player {winner.PlayerId} WINS THE ROUND! ===");
-        else
-            Debug.Log("=== Round ended with no winner ===");
-    }
-    #endregion
-
-    public void RegisterNetworkPlayer(PlayerRef player, int seatIndex)
-    {
-        if (!Object || !Object.HasStateAuthority)
+        if (!Object.HasStateAuthority)
             return;
 
-        if (seatByPlayer == null)
-            seatByPlayer = new Dictionary<PlayerRef, int>();
+        Debug.Log($"[GM.AssignSeat] {player} -> seat {seat}");
 
-        if (!seatByPlayer.ContainsKey(player))
-        {
-            seatByPlayer[player] = seatIndex;
-            Debug.Log($"Registered player {player} at seat {seatIndex}");
-        }
-        //  Debug.Log($"RegisterNetworkPlayer | InstanceHash: {GetHashCode()}");
+        SeatToRawPlayer.Set(seat, player.RawEncoded);
 
+        DebugSeatArray("After AssignSeat");
     }
+
+
+    public void DebugSeatArray(string tag)
+    {
+        string s = $"[SeatArray:{tag}] ";
+        for (int i = 0; i < SeatToRawPlayer.Length; i++)
+            s += $"[{i}]={SeatToRawPlayer[i]} ";
+        Debug.Log(s);
+    }
+
+
 
     private Card ChooseCardToPlay(PlayerState player)
     {
@@ -162,6 +127,8 @@ public class GameManager : NetworkBehaviour
     public void BeginMatch()
     {
         Debug.Log("=== BeginMatch() CALLED ===");
+        DebugSeatArray("BeginMatch");
+
 
         if (TableUIController.Instance == null)
             Debug.LogError("UI ERROR: TableUIController.Instance is NULL");
@@ -171,17 +138,11 @@ public class GameManager : NetworkBehaviour
 
         Debug.Log($"Authority Check: HasStateAuthority = {Object.HasStateAuthority}");
 
-        Debug.Log($"Players registered in seatByPlayer: {seatByPlayer.Count}");
+
         if (!Object.HasStateAuthority)
             return;
 
-        if (seatByPlayer.Count == 0)
-        {
-            Debug.LogError("BeginMatch called but no players registered!");
-            return;
-        }
-
-        int playerCount = seatByPlayer.Count;
+        int playerCount = Runner.ActivePlayers.Count();
 
         StartGame(playerCount);
         RPC_StartMatch(Deck.Count);
@@ -205,11 +166,13 @@ public class GameManager : NetworkBehaviour
 
         Deck = new Deck(CardDatabase.CreateDeck());
         Deck.Shuffle();
+        Deck.Shuffle();
+        Deck.Shuffle();
         DealInitialCards();
 
         RPC_ResetTableUI();
 
-        int playerCount = seatByPlayer.Count;
+        int playerCount = Runner.ActivePlayers.Count();
         RPC_ShowCounters(playerCount);
 
         RPC_SendDeckCount(Deck.Count);
@@ -233,30 +196,35 @@ public class GameManager : NetworkBehaviour
     {
         yield return null; // wait 1 frame so Player.Spawned() runs
 
-        foreach (var kvp in seatByPlayer)
+        for (int seat = 0; seat < Players.Count; seat++)
         {
-            PlayerRef player = kvp.Key;
-            int seatIndex = kvp.Value;
+            PlayerRef player = GetPlayerRefBySeat(seat);
+            if (player == PlayerRef.None)
+                continue;
 
-            PlayerState state = Players[seatIndex];
+            PlayerState state = Players[seat];
 
-            // Everyone sees card count
-            RPC_SendHandCount(seatIndex, state.Hand.Count);
+            RPC_SendHandCount(seat, state.Hand.Count);
 
-            // Only owner sees real hand
-            int[] cardTypes = state.Hand.Select(c => (int)c.Type).ToArray();
+            int[] cards = state.Hand.Select(c => (int)c.Type).ToArray();
 
-            NetworkObject playerObj = BasicSpawner.Instance.GetPlayerObject(player);
-            Player playerComponent = playerObj.GetComponent<Player>();
-
-            playerComponent.RPC_SendLocalHand(seatIndex, cardTypes);
+            NetworkObject obj = BasicSpawner.Instance.GetPlayerObject(player);
+            if (obj != null)
+            {
+                Player comp = obj.GetComponent<Player>();
+                comp.RPC_SendLocalHand(seat, cards);
+            }
         }
+
     }
     public void StartGame(int playerCount)
     {
         CreatePlayers(playerCount);
 
         Deck = new Deck(CardDatabase.CreateDeck());
+        Deck.Shuffle();
+        Deck.Shuffle();
+        Deck.Shuffle();
         Deck.Shuffle();
 
         DealInitialCards();
@@ -278,6 +246,27 @@ public class GameManager : NetworkBehaviour
 
     public PlayerState GetCurrentPlayer() => Players[CurrentPlayerIndex];
     public PlayerState GetPlayer(int playerId) => Players[playerId];
+    public PlayerRef GetPlayerRefBySeat(int seat)
+    {
+        int raw = SeatToRawPlayer[seat];
+
+        if (raw == 0)
+        {
+            Debug.LogWarning("[GM] Seat " + seat + " empty.");
+            return PlayerRef.None;
+        }
+
+        foreach (var pr in Runner.ActivePlayers)
+        {
+            if (pr.RawEncoded == raw)
+                return pr;
+        }
+
+        Debug.LogError("[GM] No matching PlayerRef found for raw=" + raw);
+        return PlayerRef.None;
+    }
+
+
 
     public void EliminatePlayer(int playerId)
     {
@@ -374,7 +363,8 @@ public class GameManager : NetworkBehaviour
 
         player.DrawCard(drawnCard);
 
-        PlayerRef owner = BasicSpawner.Instance.GetPlayerRefBySeat(CurrentPlayerIndex);
+        PlayerRef owner = GetPlayerRefBySeat(CurrentPlayerIndex);
+
         NetworkObject ownerObj = BasicSpawner.Instance.GetPlayerObject(owner);
         Player ownerComponent = ownerObj.GetComponent<Player>();
 
@@ -431,6 +421,7 @@ public class GameManager : NetworkBehaviour
         // Save only the card type
         _pendingCardType = card.Type;
         _hasPendingCard = true;
+        DebugDumpState("LocalPlayerPlayedCard BEFORE UI");
 
         // Open UI
         TargetSelectionUI.Instance.OpenForPlayers((int)_pendingCardType);
@@ -501,6 +492,9 @@ public class GameManager : NetworkBehaviour
 
     public bool CanPlayerPlayThisCard(CardView cardView)
     {
+        if (_roundHasEnded)
+            return false;
+
         if (CurrentTurnState != TurnState.WaitingForPlay)
             return false;
 
@@ -508,7 +502,7 @@ public class GameManager : NetworkBehaviour
         if (cardView.CardData == null)
             return false;
         int myGlobalSeat = BasicSpawner.PlayerData.LocalSeatIndex;
-
+        Debug.Log($"Check: mySeat={myGlobalSeat} current={CurrentPlayerIndex} state={CurrentTurnState}");
         if (myGlobalSeat != CurrentPlayerIndex)
             return false;
 
@@ -602,6 +596,8 @@ public class GameManager : NetworkBehaviour
             return;
 
         _roundHasEnded = true;
+        _hasPendingCard = false;
+
         Debug.Log("=== ROUND ENDED — Winner = " + winnerSeat + " ===");
 
         _lastRoundWinner = winnerSeat;
@@ -622,10 +618,58 @@ public class GameManager : NetworkBehaviour
             _victoryTokens[i] = 0;
     }
 
-    public Dictionary<PlayerRef, int> GetSeatDictionary()
+
+    public void DebugDumpState(string tag = "")
     {
-        return seatByPlayer;
+        Debug.Log("========== GAME STATE DUMP [" + tag + "] ==========");
+
+        Debug.Log($"HasStateAuthority={Object.HasStateAuthority} | HasInputAuthority={Object.HasInputAuthority}");
+        Debug.Log($"LocalPlayerRef={Runner.LocalPlayer}");
+
+        Debug.Log($"CurrentPlayerIndex={CurrentPlayerIndex}");
+        Debug.Log($"CurrentTurnState={CurrentTurnState}");
+
+
+
+        // -------------------------
+        // PLAYERS LIST
+        // -------------------------
+        Debug.Log("---- Players ----");
+
+        if (Players == null)
+        {
+            Debug.Log("Players = NULL");
+        }
+        else
+        {
+            for (int i = 0; i < Players.Count; i++)
+            {
+                var p = Players[i];
+                if (p == null)
+                {
+                    Debug.Log($"Players[{i}] = NULL");
+                    continue;
+                }
+
+                Debug.Log($"Players[{i}] => Alive={p.IsAlive}, HandCount={p.Hand.Count}");
+
+                // Log hand cards
+                if (p.Hand.Count > 0)
+                {
+                    string cards = string.Join(",", p.Hand.Select(c => c.Type.ToString()));
+                    Debug.Log($"   Hand: {cards}");
+                }
+                else
+                {
+                    Debug.Log("   Hand: EMPTY");
+                }
+            }
+        }
+
+        Debug.Log("========== END STATE DUMP ==========");
     }
+
+
 
 
 
@@ -742,15 +786,23 @@ public class GameManager : NetworkBehaviour
 
         if (seatIndex == localSeat)
         {
-            // LOCAL PLAYER => show real hand
+            // REQUEST REAL HAND FROM SERVER AGAIN
+            PlayerRef owner = GetPlayerRefBySeat(CurrentPlayerIndex);
+
+            NetworkObject ownerObj = BasicSpawner.Instance.GetPlayerObject(owner);
+            Player ownerComponent = ownerObj.GetComponent<Player>();
+
             var realHand = GameManager.Instance.GetPlayer(seatIndex).Hand;
-            TableUIController.Instance.SetLocalHand(seatIndex, realHand);
+            int[] cards = realHand.Select(c => (int)c.Type).ToArray();
+
+            ownerComponent.RPC_SendLocalHand(seatIndex, cards);
         }
         else
         {
-            // OTHERS => only show card count
             TableUIController.Instance.SetHandCount(seatIndex, newHandCount);
         }
+        DebugDumpState("After CardPlayed RPC");
+
     }
 
 
@@ -781,5 +833,6 @@ public class GameManager : NetworkBehaviour
         // TODO: Send message to UI popup
         TableUIController.Instance.ShowAnnouncement(message);
     }
+
 
 }
