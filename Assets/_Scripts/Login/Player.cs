@@ -26,11 +26,13 @@ public class Player : NetworkBehaviour
     {
         Debug.Log($"[Player.Spawned] Object {Object.Id} HasInputAuth={Object.HasInputAuthority} => SeatIndex={SeatIndex}");
 
+        // Register THIS player object on every machine
+        BasicSpawner.Instance.RegisterSpawnedPlayer(Object.InputAuthority, Object);
+
         IsLocal = Object.HasInputAuthority;
 
         if (IsLocal)
         {
-            // Delay to ensure authoritative SeatIndex is synced
             StartCoroutine(UpdateLocalSeatLater());
 
             RPC_SetNameAndAvatar(
@@ -42,6 +44,7 @@ public class Player : NetworkBehaviour
         UpdateVisuals();
         Invoke(nameof(NotifySeatArranger), 0.1f);
     }
+
 
     private System.Collections.IEnumerator UpdateLocalSeatLater()
     {

@@ -238,6 +238,10 @@ namespace LoveLetter.Networking
         {
             return _spawnedPlayers.TryGetValue(pr, out var obj) ? obj : null;
         }
+        public void RegisterSpawnedPlayer(PlayerRef player, NetworkObject obj)
+        {
+            _spawnedPlayers[player] = obj;
+        }
 
 
         // ====================================================================

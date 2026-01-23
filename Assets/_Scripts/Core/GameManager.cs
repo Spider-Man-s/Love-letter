@@ -795,30 +795,32 @@ public class GameManager : NetworkBehaviour
     private void RPC_CardPlayed(int seatIndex, int cardType, int newHandCount)
     {
         int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
-
-        // Everyone: show played card
         TableUIController.Instance.AddPlayedCard(seatIndex, new Card((CardType)cardType));
 
         if (seatIndex == localSeat)
         {
-            // REQUEST REAL HAND FROM SERVER AGAIN
-            PlayerRef owner = GetPlayerRefBySeat(CurrentPlayerIndex);
+            PlayerRef owner = GetPlayerRefBySeat(seatIndex);
+            NetworkObject obj = BasicSpawner.Instance.GetPlayerObject(owner);
 
-            NetworkObject ownerObj = BasicSpawner.Instance.GetPlayerObject(owner);
-            Player ownerComponent = ownerObj.GetComponent<Player>();
+            if (obj == null)
+            {
+                Debug.LogError("[RPC_CardPlayed] ownerObj is NULL!");
+                return;
+            }
+
+            Player ownerComp = obj.GetComponent<Player>();
 
             var realHand = GameManager.Instance.GetPlayer(seatIndex).Hand;
             int[] cards = realHand.Select(c => (int)c.Type).ToArray();
 
-            ownerComponent.RPC_SendLocalHand(seatIndex, cards);
+            ownerComp.RPC_SendLocalHand(seatIndex, cards);
         }
         else
         {
             TableUIController.Instance.SetHandCount(seatIndex, newHandCount);
         }
-        DebugDumpState("After CardPlayed RPC");
-
     }
+
 
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
