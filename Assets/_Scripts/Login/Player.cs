@@ -58,10 +58,17 @@ public class Player : NetworkBehaviour
         {
             lastSeatIndex = SeatIndex;
             HandleSeatIndexChanged();
+
+            if (Object.HasInputAuthority)
+            {
+                Debug.Log($"[LOCAL] SeatIndex replicated correctly: {SeatIndex}");
+                BasicSpawner.PlayerData.LocalSeatIndex = SeatIndex;
+            }
         }
 
         UpdateVisuals();
     }
+
 
     private void HandleSeatIndexChanged()
     {

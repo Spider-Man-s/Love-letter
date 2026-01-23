@@ -1,4 +1,5 @@
 using UnityEngine;
+using LoveLetter.Networking;
 
 public class UI_InputRouter : MonoBehaviour
 {
@@ -14,6 +15,12 @@ public class UI_InputRouter : MonoBehaviour
         if (cardView == null) return;
 
         Debug.Log($"[UI] Card clicked: {cardView.CardData.Type}");
+
+        if (BasicSpawner.PlayerData.LocalSeatIndex < 0)
+        {
+            Debug.LogWarning("[UI] Cannot click card yet: local seat not assigned.");
+            return;
+        }
 
         // Ask GameManager if it can be played right now
         if (!GameManager.Instance.CanPlayerPlayThisCard(cardView))

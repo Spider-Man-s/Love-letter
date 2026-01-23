@@ -46,7 +46,7 @@ public class GameManager : NetworkBehaviour
         // Reset UI for new clients
         TableUIController.Instance.ResetVictoryCounters();
         TableUIController.Instance.ResetTable();
-
+        BuildPlayersFromSeatArray();
 
         if (!Object.HasStateAuthority)
             return;
@@ -92,6 +92,21 @@ public class GameManager : NetworkBehaviour
             s += $"[{i}]={SeatToRawPlayer[i]} ";
         Debug.Log(s);
     }
+    private void BuildPlayersFromSeatArray()
+    {
+        int count = 0;
+        for (int i = 0; i < SeatToRawPlayer.Length; i++)
+        {
+            if (SeatToRawPlayer[i] != 0)
+                count++;
+        }
+
+        Players.Clear();
+        for (int i = 0; i < count; i++)
+            Players.Add(new PlayerState(i));
+
+        Debug.Log($"[GM] Players list rebuilt from SeatToRawPlayer. Count={Players.Count}");
+    }
 
 
 
@@ -128,7 +143,7 @@ public class GameManager : NetworkBehaviour
     {
         Debug.Log("=== BeginMatch() CALLED ===");
         DebugSeatArray("BeginMatch");
-
+        BuildPlayersFromSeatArray();
 
         if (TableUIController.Instance == null)
             Debug.LogError("UI ERROR: TableUIController.Instance is NULL");

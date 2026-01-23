@@ -34,6 +34,18 @@ public class TargetSelectionUI : MonoBehaviour
     // ===============================
     public void OpenForPlayers(int cardId)
     {
+        int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+        if (localSeat < 0)
+        {
+            Debug.LogError("[UI:TargetSelection] ERROR - Local seat not initialized yet!");
+            return;
+        }
+        if (localSeat >= GameManager.Instance.Players.Count)
+        {
+            Debug.LogError($"[UI:TargetSelection] ERROR - Local seat {localSeat} out of Players.Count={GameManager.Instance.Players.Count}");
+            return;
+        }
+
         Clear();
         Debug.Log("[UI:TargetSelection] Opening with cardId=" + cardId);
         GameManager.Instance.DebugDumpState("TargetSelection");
@@ -47,7 +59,6 @@ public class TargetSelectionUI : MonoBehaviour
             return;
 
         var playerObjects = FindObjectsOfType<Player>();
-        int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
         ToggleGroup group = playerToggleContainer.GetComponent<ToggleGroup>();
 
         foreach (var p in playerObjects)
