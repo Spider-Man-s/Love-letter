@@ -146,4 +146,13 @@ public class Player : NetworkBehaviour
         TableUIController.Instance.SetLocalHand(seatIndex, cards);
     }
 
+
+    // ====================================================================
+    // ROLES RPC
+    // ====================================================================
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    public void RPC_ShowBaronResult(int myCard, int opponentCard, int result)
+    {
+        TargetSelectionUI.Instance.ShowBaronDuel(myCard, opponentCard, result);
+    }
 }

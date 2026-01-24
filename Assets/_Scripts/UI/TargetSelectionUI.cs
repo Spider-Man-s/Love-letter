@@ -9,11 +9,16 @@ public class TargetSelectionUI : MonoBehaviour
     [SerializeField] private Transform playerToggleContainer;
     [SerializeField] private PlayerSelectToggle playerTogglePrefab;
     [SerializeField] private Button confirmButton;
-    [SerializeField] private GameObject panelRoot;
+    [SerializeField] private GameObject TargetPanel;
     [SerializeField] private GameObject playerSection;
     [SerializeField] private GameObject cardSection;
     [SerializeField] private TextMeshProUGUI playerSectionText;
     [SerializeField] private TextMeshProUGUI cardSectionText;
+    [Header("Baron UI")]
+    [SerializeField] private GameObject baronUIPanel;
+    [SerializeField] private TextMeshProUGUI baronCardVerdictText;
+    [SerializeField] private CardView baronOpponentCard;
+    [SerializeField] private CardView baronPlayerCard;
 
     private int selectedPlayerSeat = -1;
     private int _currentCardId = -1;
@@ -25,7 +30,7 @@ public class TargetSelectionUI : MonoBehaviour
     {
         Instance = this;
 
-        panelRoot.SetActive(false);
+        TargetPanel.SetActive(false);
         confirmButton.onClick.AddListener(OnConfirmClicked);
     }
 
@@ -55,7 +60,7 @@ public class TargetSelectionUI : MonoBehaviour
         bool allowSelfTarget = ConfigureForCard(cardId);
 
         // If UI is not needed, exit
-        if (!panelRoot.activeSelf)
+        if (!TargetPanel.activeSelf)
             return;
 
         var playerObjects = FindObjectsOfType<Player>();
@@ -83,8 +88,8 @@ public class TargetSelectionUI : MonoBehaviour
             );
         }
 
-        // panelRoot MUST stay active here
-        panelRoot.SetActive(true);
+        // TargetPanel MUST stay active here
+        TargetPanel.SetActive(true);
     }
 
 
@@ -129,7 +134,7 @@ public class TargetSelectionUI : MonoBehaviour
         cardSection.SetActive(false);
         playerSectionText.gameObject.SetActive(false);
         cardSectionText.gameObject.SetActive(false);
-        panelRoot.SetActive(false);
+        TargetPanel.SetActive(false);
 
         bool allowSelfTarget = true;
 
@@ -143,7 +148,7 @@ public class TargetSelectionUI : MonoBehaviour
                 return false;
 
             case 1: // Guard
-                panelRoot.SetActive(true);
+                TargetPanel.SetActive(true);
                 playerSection.SetActive(true);
                 playerSectionText.gameObject.SetActive(true);
                 cardSection.SetActive(true);
@@ -152,20 +157,20 @@ public class TargetSelectionUI : MonoBehaviour
                 break;
 
             case 2: // Priest
-                panelRoot.SetActive(true);
+                TargetPanel.SetActive(true);
                 playerSection.SetActive(true);
                 playerSectionText.gameObject.SetActive(true);
                 break;
 
             case 3: // Baron
-                panelRoot.SetActive(true);
+                TargetPanel.SetActive(true);
                 playerSection.SetActive(true);
                 playerSectionText.gameObject.SetActive(true);
                 allowSelfTarget = false;
                 break;
 
             case 5: // Prince
-                panelRoot.SetActive(true);
+                TargetPanel.SetActive(true);
                 playerSection.SetActive(true);
                 playerSectionText.gameObject.SetActive(true);
                 allowSelfTarget = true;
@@ -176,7 +181,7 @@ public class TargetSelectionUI : MonoBehaviour
                 return false;
 
             case 7: // King
-                panelRoot.SetActive(true);
+                TargetPanel.SetActive(true);
                 playerSection.SetActive(true);
                 playerSectionText.gameObject.SetActive(true);
                 allowSelfTarget = false;
@@ -209,7 +214,7 @@ public class TargetSelectionUI : MonoBehaviour
         }
 
 
-        panelRoot.SetActive(false);
+        TargetPanel.SetActive(false);
     }
     private void PlayWithoutContext()
     {
@@ -227,6 +232,33 @@ public class TargetSelectionUI : MonoBehaviour
 
     public void Close()
     {
-        panelRoot.SetActive(false);
+        TargetPanel.SetActive(false);
     }
+
+    // ===============================
+    // Roles
+    // ===============================
+
+    public void ShowBaronDuel(int myCard, int opponentCard, int result)
+    {
+        baronUIPanel.SetActive(true);
+
+        baronPlayerCard.Setup(new Card((CardType)myCard));
+        baronOpponentCard.Setup(new Card((CardType)opponentCard));
+
+        switch (result)
+        {
+            case 1:
+                baronCardVerdictText.text = "You Win!";
+                break;
+            case 0:
+                baronCardVerdictText.text = "It's a Tie";
+                break;
+            case -1:
+                baronCardVerdictText.text = "You Lose";
+                break;
+        }
+    }
+
+
 }

@@ -1,5 +1,5 @@
 using UnityEngine;
-
+using LoveLetter.Networking;
 public class BaronEffect : ICardEffect
 {
     public void Resolve(GameManager game, int sourcePlayerId, EffectContext context)
@@ -10,8 +10,10 @@ public class BaronEffect : ICardEffect
             return;
         }
 
+        int targetId = context.TargetPlayerId.Value;
+
         var source = game.GetPlayer(sourcePlayerId);
-        var target = game.GetPlayer(context.TargetPlayerId.Value);
+        var target = game.GetPlayer(targetId);
 
         if (!target.IsAlive || target.IsProtected)
         {
@@ -19,34 +21,60 @@ public class BaronEffect : ICardEffect
             return;
         }
 
-        if (source.Hand.Count == 0 || target.Hand.Count == 0)
-        {
-            Debug.LogError("BaronEffect: empty hand");
-            return;
-        }
-
         var sourceCard = source.Hand[0];
         var targetCard = target.Hand[0];
 
-        Debug.Log($"Baron compare: P{sourcePlayerId}({sourceCard}) vs P{target.PlayerId}({targetCard})");
+        int outcome = 0;
+        if (sourceCard.Value > targetCard.Value) outcome = 1;
+        else if (sourceCard.Value < targetCard.Value) outcome = -1;
 
-        if (sourceCard.Value > targetCard.Value)
+        // ====================================================================
+        // GET PLAYER OBJECTS FOR RPC TARGETING
+        // ====================================================================
+        Player sourcePlayerObj = BasicSpawner.Instance.GetPlayerBySeat(sourcePlayerId);
+        Player targetPlayerObj = BasicSpawner.Instance.GetPlayerBySeat(targetId);
+
+        if (sourcePlayerObj == null || targetPlayerObj == null)
         {
-            game.EliminatePlayer(target.PlayerId);
-            game.RPC_AnnounceAction(
-        $"Player {sourcePlayerId} played Baron and eliminated Player {target.PlayerId}.");
+            Debug.LogError("BaronEffect: Could not find Player objects for UI.");
+            return;
         }
-        else if (sourceCard.Value < targetCard.Value)
+        // ====================================================================
+        // PRIVATE UI
+        // ====================================================================
+
+        sourcePlayerObj.RPC_ShowBaronResult(
+          (int)sourceCard.Type,
+          (int)targetCard.Type,
+          outcome
+      );
+
+        targetPlayerObj.RPC_ShowBaronResult(
+            (int)targetCard.Type,
+            (int)sourceCard.Type,
+            -outcome
+        );
+
+        // ====================================================================
+        // PUBLIC ANNOUNCE
+        // ====================================================================
+        if (outcome == 1)
+        {
+            game.EliminatePlayer(targetId);
+            game.RPC_AnnounceAction(
+                $"Player {sourcePlayerId} played Baron and eliminated Player {targetId}.");
+        }
+        else if (outcome == -1)
         {
             game.EliminatePlayer(sourcePlayerId);
             game.RPC_AnnounceAction(
-        $"Player {sourcePlayerId} played Baron and was eliminated by Player {target.PlayerId}.");
+                $"Player {sourcePlayerId} played Baron and was eliminated by Player {targetId}.");
         }
         else
         {
-            Debug.Log("Baron tie – no elimination");
             game.RPC_AnnounceAction(
-        $"Player {sourcePlayerId} played Baron against Player {target.PlayerId} but it was a tie.");
+                $"Player {sourcePlayerId} played Baron against Player {targetId} but it was a tie.");
         }
     }
 }
+

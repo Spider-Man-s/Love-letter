@@ -266,6 +266,17 @@ namespace LoveLetter.Networking
             sessions.Clear();
             sessions.AddRange(sessionList);
         }
+        public Player GetPlayerBySeat(int seatIndex)
+        {
+            foreach (var kv in _spawnedPlayers)
+            {
+                Player p = kv.Value.GetComponent<Player>();
+                if (p != null && p.SeatIndex == seatIndex)
+                    return p;
+            }
+            return null;
+        }
+
 
 
         // ====================================================================
