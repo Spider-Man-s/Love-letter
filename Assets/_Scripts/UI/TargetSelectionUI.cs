@@ -24,6 +24,17 @@ public class TargetSelectionUI : MonoBehaviour
     [SerializeField] private GameObject priestUIPanel;
     [SerializeField] private CardView priestOpponentCard;
 
+    [Header("Chancellor UI (Card 6)")]
+    [SerializeField] private GameObject chancellorPanel;
+    [SerializeField] private CardView chancellorCard1;
+    [SerializeField] private CardView chancellorCard2;
+    [SerializeField] private CardView chancellorCard3;
+    [SerializeField] private TMP_Dropdown chancellorDrop1;
+    [SerializeField] private TMP_Dropdown chancellorDrop2;
+    [SerializeField] private TMP_Dropdown chancellorDrop3;
+    [SerializeField] private Button chancellorConfirmButton;
+
+
     private int selectedPlayerSeat = -1;
     private int _currentCardId = -1;
 
@@ -38,6 +49,7 @@ public class TargetSelectionUI : MonoBehaviour
         confirmButton.onClick.AddListener(OnConfirmClicked);
         discardButton.onClick.AddListener(OnDiscardClicked);
         discardButton.gameObject.SetActive(false);
+        chancellorConfirmButton.onClick.AddListener(OnChancellorConfirm);
     }
 
     // ===============================
@@ -194,7 +206,7 @@ public class TargetSelectionUI : MonoBehaviour
                 break;
 
             case 6: // Chancellor
-                    // No UI YET
+                GameManager.Instance.LocalPlayerPlayNoContext();
                 return false;
 
             case 7: // King
@@ -316,4 +328,67 @@ public class TargetSelectionUI : MonoBehaviour
 
         priestOpponentCard.Setup(new Card((CardType)cardType));
     }
+
+    public void OpenChancellorUI()
+    {
+        Debug.Log("[CLIENT UI] OpenChancellorUI CALLED!");
+        Clear();
+        TargetPanel.SetActive(false);
+
+        Debug.Log("[UI] Opening Chancellor panel");
+
+        // Disable normal hand interactions
+        TableUIController.Instance.SetLocalHandInteractable(false);
+
+        // Show panel
+        chancellorPanel.SetActive(true);
+
+        var hand = GameManager.Instance
+            .GetPlayer(BasicSpawner.PlayerData.LocalSeatIndex)
+            .Hand;
+
+        if (hand.Count != 3)
+            Debug.LogError("[ChancellorUI] Expected 3 cards after drawing!");
+
+        chancellorCard1.Setup(hand[0]);
+        chancellorCard2.Setup(hand[1]);
+        chancellorCard3.Setup(hand[2]);
+
+        // Defaults
+        chancellorDrop1.value = 0;
+        chancellorDrop2.value = 1;
+        chancellorDrop3.value = 2;
+
+        chancellorDrop1.onValueChanged.AddListener(_ => ValidateChancellor());
+        chancellorDrop2.onValueChanged.AddListener(_ => ValidateChancellor());
+        chancellorDrop3.onValueChanged.AddListener(_ => ValidateChancellor());
+
+        ValidateChancellor();
+    }
+
+    private void ValidateChancellor()
+    {
+        int d1 = chancellorDrop1.value;
+        int d2 = chancellorDrop2.value;
+        int d3 = chancellorDrop3.value;
+
+        bool unique = d1 != d2 && d1 != d3 && d2 != d3;
+        chancellorConfirmButton.interactable = unique;
+    }
+
+    public void OnChancellorConfirm()
+    {
+        int[] choices =
+        {
+        chancellorDrop1.value,
+        chancellorDrop2.value,
+        chancellorDrop3.value
+    };
+
+        var localPlayerObj = BasicSpawner.Instance.GetLocalPlayerObject();
+        localPlayerObj.GetComponent<Player>().RPC_SubmitChancellorChoices(choices);
+    }
+
+
+
 }

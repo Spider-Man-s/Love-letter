@@ -243,6 +243,7 @@ public class GameManager : NetworkBehaviour
         Deck.Shuffle();
         Deck.Shuffle();
 
+        Deck.Print();
         DealInitialCards();
         CurrentPlayerIndex = 0;
     }
@@ -402,13 +403,13 @@ public class GameManager : NetworkBehaviour
         CurrentTurnState = TurnState.WaitingForPlay;
     }
 
-
     public void PlayCard(int playerId, Card card, EffectContext context)
     {
         if (CurrentTurnState != TurnState.WaitingForPlay)
             return;
 
         var player = Players[playerId];
+
         bool mustPlayCountess =
             player.Hand.Exists(c => c.Type == CardType.Countess) &&
             player.Hand.Exists(c => c.Type == CardType.Prince || c.Type == CardType.King);
@@ -419,6 +420,58 @@ public class GameManager : NetworkBehaviour
         if (!player.Hand.Contains(card))
             return;
 
+
+        // ==============================
+        // SPECIAL: CHANCELLOR (Card 6)
+        // ==============================
+        if (card.Type == CardType.Chancellor)
+        {
+            Debug.Log("[SERVER] Chancellor played by seat " + playerId);
+
+            player.RemoveCard(card);
+            Debug.Log("[SERVER] Chancellor removed. Player now has: " +
+                      string.Join(",", player.Hand.Select(c => c.Type)));
+
+            RPC_CardPlayed(playerId, (int)card.Type, player.Hand.Count);
+
+            // Draw 2 cards
+            var c1 = Deck.Draw();
+            var c2 = Deck.Draw();
+            Debug.Log($"[SERVER] Chancellor draws: {c1.Type}, {c2.Type}");
+
+            player.DrawCard(c1);
+            player.DrawCard(c2);
+            Debug.Log("[SERVER] Hand after draws: " +
+                      string.Join(",", player.Hand.Select(c => c.Type)));
+
+            SyncDeck();
+            Debug.Log("[SERVER] Deck synced.");
+
+            // Send new hand to client
+            PlayerRef owner = GetPlayerRefBySeat(playerId);
+            var obj = BasicSpawner.Instance.GetPlayerObject(owner);
+
+            if (obj == null) Debug.LogError("[SERVER] Chancellor: owner object is NULL!");
+
+            Debug.Log("[SERVER] Sending full hand to client...");
+            obj.GetComponent<Player>().RPC_SendLocalHand(
+                playerId,
+                player.Hand.Select(c => (int)c.Type).ToArray()
+            );
+
+            Debug.Log("[SERVER] Sending RPC_OpenChancellorUI...");
+            obj.GetComponent<Player>().RPC_OpenChancellorUI(playerId);
+
+            Debug.Log("[SERVER] Chancellor path COMPLETE. Waiting for client choice.");
+
+            CurrentTurnState = TurnState.Resolving;
+            return;
+        }
+
+
+        // ==============================
+        // NORMAL CARDS
+        // ==============================
         player.RemoveCard(card);
         RPC_CardPlayed(playerId, (int)card.Type, player.Hand.Count);
 
@@ -505,6 +558,23 @@ public class GameManager : NetworkBehaviour
         _hasPendingCard = false;
     }
 
+    public void LocalPlayerPlayChancellor(int[] choices)
+    {
+        int seat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        // Send the play request (same as any normal card)
+        RPC_RequestPlayCardContext(
+            seat,
+            (int)CardType.Chancellor,
+            -1,   // no target
+            -1    // no guess
+        );
+
+        // Immediately send the choices to server
+        RPC_SubmitChancellorChoices(seat, choices);
+    }
+
+
 
     public bool CanPlayerPlayThisCard(CardView cardView)
     {
@@ -533,6 +603,78 @@ public class GameManager : NetworkBehaviour
 
         EndTurn();
     }
+
+    public void ServerResolveChancellor(PlayerRef playerRef, int[] choices)
+    {
+        int seatIndex = GetSeatByPlayerRef(playerRef);
+
+        var player = GetPlayer(seatIndex);
+        var hand = player.Hand;
+
+        if (hand.Count != 3)
+        {
+            Debug.LogError("[Chancellor] Hand is not 3 cards on confirm.");
+            return;
+        }
+
+        Card keep = null;
+        Card secondLast = null;
+        Card last = null;
+
+        for (int i = 0; i < 3; i++)
+        {
+            if (choices[i] == 0) keep = hand[i];
+            else if (choices[i] == 1) secondLast = hand[i];
+            else if (choices[i] == 2) last = hand[i];
+        }
+
+        if (keep == null || secondLast == null || last == null)
+        {
+            Debug.LogError("[Chancellor] Invalid dropdown selection");
+            return;
+        }
+
+        // Fix hand
+        hand.Clear();
+        hand.Add(keep);
+
+        // Put cards back in deck
+        Deck.PutSecondToLast(secondLast);
+        Deck.PutOnBottom(last);
+
+        SyncDeck();
+        SyncPlayerHandToOwner(seatIndex);
+        BroadcastHandCount(seatIndex);
+
+        RPC_AnnounceAction($"Player {seatIndex} resolved Chancellor.");
+
+        // Continue game
+        CurrentTurnState = TurnState.WaitingForDraw;
+        StartTurn();
+    }
+
+
+    public int GetSeatByPlayerRef(PlayerRef playerRef)
+    {
+        for (int i = 0; i < Players.Count; i++)
+        {
+            var obj = BasicSpawner.Instance.GetPlayerObject(playerRef);
+            if (obj != null)
+            {
+                var p = obj.GetComponent<Player>();
+                if (p.SeatIndex == Players[i].PlayerId)
+                    return Players[i].PlayerId;
+            }
+        }
+
+        Debug.LogError("[GameManager] Could not resolve seat index for PlayerRef: " + playerRef);
+        return -1;
+    }
+
+
+
+
+
     public void SyncDeck()
     {
         RPC_SendDeckCount(Deck.Count);
@@ -900,6 +1042,20 @@ public class GameManager : NetworkBehaviour
     public void RPC_ShowDiscard(int seatIndex, int cardType)
     {
         TableUIController.Instance.AddPlayedCard(seatIndex, new Card((CardType)cardType));
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SubmitChancellorChoices(int seatIndex, int[] choices)
+    {
+        Debug.Log($"[SERVER] Chancellor choices received from seat {seatIndex}: {choices[0]},{choices[1]},{choices[2]}");
+
+        var ctx = new EffectContext
+        {
+            ChancellorChoices = choices
+        };
+
+        var effect = new ChancellorEffect();
+        effect.Resolve(this, seatIndex, ctx);
     }
 
 

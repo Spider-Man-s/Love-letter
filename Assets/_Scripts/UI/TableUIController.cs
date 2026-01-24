@@ -178,6 +178,14 @@ public class TableUIController : MonoBehaviour
         handCards[seatIndex].Clear();
     }
 
+    public List<CardView> GetLocalHand()
+    {
+        int seat = BasicSpawner.PlayerData.LocalSeatIndex;
+        int localSeat = GlobalToLocalSeat(seat);
+        return handCards[localSeat];
+    }
+
+
     // ============================================================
     // PLAYED CARDS UI
     // ============================================================
@@ -217,7 +225,11 @@ public class TableUIController : MonoBehaviour
     }
 
 
-
+    public void SetLocalHandInteractable(bool state)
+    {
+        foreach (var cv in GetLocalHand())
+            cv.SetInteractable(state);
+    }
     // ============================================================
     // FULL RESET
     // ============================================================

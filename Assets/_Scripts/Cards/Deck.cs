@@ -34,5 +34,48 @@ public class Deck
         UnityEngine.Debug.Log(cardsList);
     }
 
+    public IEnumerable<Card> GetCards()
+    {
+        return cards.ToArray();
+    }
+
+    public void OverrideStack(List<Card> ordered)
+    {
+        cards = new Stack<Card>();
+
+        for (int i = 0; i < ordered.Count; i++)
+            cards.Push(ordered[i]);
+    }
+    public void PutOnBottom(Card card)
+    {
+        // Convert stack (top → bottom) to list
+        var list = cards.ToList();
+        // Insert card at bottom (beginning)
+        list.Insert(0, card);
+        // Reverse back into push order
+        list.Reverse();
+        cards = new Stack<Card>(list);
+    }
+
+    public void PutSecondToLast(Card card)
+    {
+        var list = cards.ToList(); // top → bottom
+
+        if (list.Count < 1)
+        {
+            PutOnBottom(card);
+            return;
+        }
+
+        // second from bottom = index 1 from bottom
+        list.Insert(1, card);
+
+        // restore push order
+        list.Reverse();
+        cards = new Stack<Card>(list);
+    }
+
+
+
     public int Count => cards.Count;
 }

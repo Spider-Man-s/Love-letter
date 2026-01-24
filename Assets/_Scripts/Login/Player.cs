@@ -135,6 +135,7 @@ public class Player : NetworkBehaviour
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
     public void RPC_SendLocalHand(int seatIndex, int[] cardTypes)
     {
+
         var cards = cardTypes
             .Select(t => new Card((CardType)t))
             .ToList();
@@ -157,11 +158,39 @@ public class Player : NetworkBehaviour
     {
         TargetSelectionUI.Instance.ShowBaronDuel(myCard, opponentCard, result);
     }
+
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
     public void RPC_ShowPriestResult(int opponentCard)
     {
         TargetSelectionUI.Instance.ShowPriestCard(opponentCard);
     }
+
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    public void RPC_OpenChancellorUI(int seatIndex)
+    {
+        Debug.Log("[CLIENT] RPC_OpenChancellorUI received for seat=" + seatIndex);
+
+        int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
+        Debug.Log($"[CLIENT] Local seat = {localSeat}");
+
+
+        if (localSeat != seatIndex)
+        {
+            Debug.Log("[CLIENT] Ignoring Chancellor UI (not for this player)");
+            return;
+        }
+
+        Debug.Log("[CLIENT] Opening Chancellor UI NOW.");
+        TargetSelectionUI.Instance.OpenChancellorUI();
+    }
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SubmitChancellorChoices(int[] choices)
+    {
+        GameManager.Instance.ServerResolveChancellor(Object.InputAuthority, choices);
+    }
+
 
 
 }
