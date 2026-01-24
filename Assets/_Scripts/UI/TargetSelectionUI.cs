@@ -19,6 +19,9 @@ public class TargetSelectionUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI baronCardVerdictText;
     [SerializeField] private CardView baronOpponentCard;
     [SerializeField] private CardView baronPlayerCard;
+    [Header("Priest UI")]
+    [SerializeField] private GameObject priestUIPanel;
+    [SerializeField] private CardView priestOpponentCard;
 
     private int selectedPlayerSeat = -1;
     private int _currentCardId = -1;
@@ -260,5 +263,10 @@ public class TargetSelectionUI : MonoBehaviour
         }
     }
 
+    public void ShowPriestCard(int cardType)
+    {
+        priestUIPanel.SetActive(true);
 
+        priestOpponentCard.Setup(new Card((CardType)cardType));
+    }
 }

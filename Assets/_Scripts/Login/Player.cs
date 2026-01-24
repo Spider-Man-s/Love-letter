@@ -155,4 +155,11 @@ public class Player : NetworkBehaviour
     {
         TargetSelectionUI.Instance.ShowBaronDuel(myCard, opponentCard, result);
     }
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    public void RPC_ShowPriestResult(int opponentCard)
+    {
+        TargetSelectionUI.Instance.ShowPriestCard(opponentCard);
+    }
+
+
 }

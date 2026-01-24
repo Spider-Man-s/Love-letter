@@ -1,5 +1,5 @@
 using UnityEngine;
-
+using LoveLetter.Networking;
 public class PriestEffect : ICardEffect
 {
     public void Resolve(GameManager game, int sourcePlayerId, EffectContext context)
@@ -10,29 +10,29 @@ public class PriestEffect : ICardEffect
             return;
         }
 
-        var target = game.GetPlayer(context.TargetPlayerId.Value);
+        int targetSeat = context.TargetPlayerId.Value;
 
-        if (!target.IsAlive)
+        var target = game.GetPlayer(targetSeat);
+        if (!target.IsAlive || target.IsProtected || target.Hand.Count == 0)
+            return;
+
+        Card targetCard = target.Hand[0];
+
+        // Find the Player component of the SOURCE (the one who played Priest)
+        Player sourcePlayerObj = BasicSpawner.Instance.GetPlayerBySeat(sourcePlayerId);
+
+        if (sourcePlayerObj == null)
         {
-            Debug.Log("Priest target is eliminated");
+            Debug.LogError("PriestEffect: Could not find source player object!");
             return;
         }
 
-        if (target.IsProtected)
-        {
-            Debug.Log("Priest target is protected");
-            return;
-        }
+        // Send UI ONLY to the Priest player
+        sourcePlayerObj.RPC_ShowPriestResult((int)targetCard.Type);
 
-        if (target.Hand.Count == 0)
-        {
-            Debug.LogError("Priest target has empty hand");
-            return;
-        }
-
-        var card = target.Hand[0];
-        Debug.Log($"Player {sourcePlayerId} looks at Player {target.PlayerId}'s hand: {card}");
+        // Public announce
         game.RPC_AnnounceAction(
-    $"Player {sourcePlayerId} played Priest and looked at Player {target.PlayerId}'s hand.");
+            $"Player {sourcePlayerId} played Priest and looked at Player {targetSeat}'s hand."
+        );
     }
 }
