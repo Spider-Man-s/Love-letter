@@ -637,6 +637,37 @@ public class GameManager : NetworkBehaviour
     }
 
 
+    public void SyncPlayerHandToOwner(int seatIndex)
+    {
+        PlayerRef owner = GetPlayerRefBySeat(seatIndex);
+        NetworkObject ownerObj = BasicSpawner.Instance.GetPlayerObject(owner);
+
+        if (ownerObj == null)
+        {
+            Debug.LogError($"[SyncPlayerHandToOwner] ownerObj NULL for seat {seatIndex}");
+            return;
+        }
+
+        Player p = ownerObj.GetComponent<Player>();
+        if (p == null)
+        {
+            Debug.LogError($"[SyncPlayerHandToOwner] Player component missing for seat {seatIndex}");
+            return;
+        }
+
+        var realHand = GetPlayer(seatIndex).Hand;
+        int[] cards = realHand.ConvertAll(c => (int)c.Type).ToArray();
+
+        p.RPC_SendLocalHand(seatIndex, cards);
+    }
+
+    public void BroadcastHandCount(int seatIndex)
+    {
+        int count = GetPlayer(seatIndex).Hand.Count;
+        RPC_SendHandCount(seatIndex, count);
+    }
+
+
     public void DebugDumpState(string tag = "")
     {
         Debug.Log("========== GAME STATE DUMP [" + tag + "] ==========");

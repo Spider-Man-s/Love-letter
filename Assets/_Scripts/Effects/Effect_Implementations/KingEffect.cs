@@ -1,6 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
-
+using LoveLetter.Networking;
 public class KingEffect : ICardEffect
 {
     public void Resolve(GameManager game, int sourcePlayerId, EffectContext context)
@@ -11,8 +11,10 @@ public class KingEffect : ICardEffect
             return;
         }
 
+        int targetId = context.TargetPlayerId.Value;
+
         var source = game.GetPlayer(sourcePlayerId);
-        var target = game.GetPlayer(context.TargetPlayerId.Value);
+        var target = game.GetPlayer(targetId);
 
         if (!target.IsAlive || target.IsProtected)
         {
@@ -20,14 +22,24 @@ public class KingEffect : ICardEffect
             return;
         }
 
+        // Swap hands
         var temp = new List<Card>(source.Hand);
         source.Hand.Clear();
         source.Hand.AddRange(target.Hand);
         target.Hand.Clear();
         target.Hand.AddRange(temp);
 
-        Debug.Log($"Player {sourcePlayerId} and Player {target.PlayerId} swapped hands");
+        Debug.Log($"Player {sourcePlayerId} and Player {targetId} swapped hands");
+
         game.RPC_AnnounceAction(
-    $"Player {sourcePlayerId} played King and swapped hands with Player {target.PlayerId}.");
+            $"Player {sourcePlayerId} played King and swapped hands with Player {targetId}.");
+
+        // NEW: Sync real hands to owners
+        game.SyncPlayerHandToOwner(sourcePlayerId);
+        game.SyncPlayerHandToOwner(targetId);
+
+        // NEW: Sync hand counts to everyone else
+        game.BroadcastHandCount(sourcePlayerId);
+        game.BroadcastHandCount(targetId);
     }
 }
