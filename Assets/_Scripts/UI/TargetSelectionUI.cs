@@ -9,6 +9,7 @@ public class TargetSelectionUI : MonoBehaviour
     [SerializeField] private Transform playerToggleContainer;
     [SerializeField] private PlayerSelectToggle playerTogglePrefab;
     [SerializeField] private Button confirmButton;
+    [SerializeField] private Button discardButton;
     [SerializeField] private GameObject TargetPanel;
     [SerializeField] private GameObject playerSection;
     [SerializeField] private GameObject cardSection;
@@ -35,6 +36,8 @@ public class TargetSelectionUI : MonoBehaviour
 
         TargetPanel.SetActive(false);
         confirmButton.onClick.AddListener(OnConfirmClicked);
+        discardButton.onClick.AddListener(OnDiscardClicked);
+        discardButton.gameObject.SetActive(false);
     }
 
     // ===============================
@@ -76,7 +79,7 @@ public class TargetSelectionUI : MonoBehaviour
 
             bool interactable =
                 ps.IsAlive &&
-                !ps.IsProtected &&
+                !GetNetProtection(seat) &&
                 (allowSelfTarget || seat != localSeat);
 
             var ui = Instantiate(playerTogglePrefab, playerToggleContainer);
@@ -95,6 +98,15 @@ public class TargetSelectionUI : MonoBehaviour
         TargetPanel.SetActive(true);
     }
 
+    private bool GetNetProtection(int seat)
+    {
+        foreach (var p in FindObjectsOfType<Player>())
+        {
+            if (p.SeatIndex == seat)
+                return p.IsProtectedNet;
+        }
+        return false;
+    }
 
 
 
@@ -139,6 +151,7 @@ public class TargetSelectionUI : MonoBehaviour
         cardSectionText.gameObject.SetActive(false);
         TargetPanel.SetActive(false);
 
+
         bool allowSelfTarget = true;
 
         switch (cardId)
@@ -163,6 +176,7 @@ public class TargetSelectionUI : MonoBehaviour
                 TargetPanel.SetActive(true);
                 playerSection.SetActive(true);
                 playerSectionText.gameObject.SetActive(true);
+                allowSelfTarget = false;
                 break;
 
             case 3: // Baron
@@ -190,7 +204,8 @@ public class TargetSelectionUI : MonoBehaviour
                 allowSelfTarget = false;
                 break;
         }
-
+        bool hasValidTargets = CheckForValidTargets(allowSelfTarget);
+        discardButton.gameObject.SetActive(!hasValidTargets);
         return allowSelfTarget;
     }
 
@@ -219,6 +234,38 @@ public class TargetSelectionUI : MonoBehaviour
 
         TargetPanel.SetActive(false);
     }
+
+
+    private void OnDiscardClicked()
+    {
+        Debug.Log("[UI] Discard clicked — playing card with no target");
+
+        TargetPanel.SetActive(false);
+
+        GameManager.Instance.LocalPlayerPlayNoContext();
+    }
+
+    private bool CheckForValidTargets(bool allowSelfTarget)
+    {
+        int mySeat = BasicSpawner.PlayerData.LocalSeatIndex;
+
+        foreach (var p in GameManager.Instance.Players)
+        {
+            int seat = p.PlayerId;
+
+            bool valid =
+                p.IsAlive &&
+                !GetNetProtection(p.PlayerId) &&
+                (allowSelfTarget || seat != mySeat);
+
+            if (valid)
+                return true;
+        }
+
+        return false;
+    }
+
+
     private void PlayWithoutContext()
     {
         GameManager.Instance.LocalPlayerPlayNoContext();

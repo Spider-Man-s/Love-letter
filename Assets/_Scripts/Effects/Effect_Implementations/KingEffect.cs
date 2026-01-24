@@ -7,7 +7,11 @@ public class KingEffect : ICardEffect
     {
         if (context.TargetPlayerId == null)
         {
-            Debug.LogError("KingEffect: missing target");
+            Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
+
+            game.RPC_AnnounceAction(
+                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+
             return;
         }
 

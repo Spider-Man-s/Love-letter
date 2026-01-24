@@ -6,7 +6,11 @@ public class PriestEffect : ICardEffect
     {
         if (context.TargetPlayerId == null)
         {
-            Debug.LogError("PriestEffect: missing target");
+            Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
+
+            game.RPC_AnnounceAction(
+                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+
             return;
         }
 

@@ -544,6 +544,11 @@ public class GameManager : NetworkBehaviour
         var player = GetCurrentPlayer();
 
         player.IsProtected = false;
+        var pObj = BasicSpawner.Instance.GetPlayerObject(
+    GetPlayerRefBySeat(CurrentPlayerIndex)
+);
+        if (pObj != null)
+            pObj.GetComponent<Player>().IsProtectedNet = false;
         CurrentTurnState = TurnState.WaitingForDraw;
 
         DrawPhase();

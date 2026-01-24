@@ -10,6 +10,8 @@ public class Player : NetworkBehaviour
     [Networked] public int SeatIndex { get; set; }
     [Networked] public NetworkString<_16> PlayerName { get; set; }
     [Networked] public int AvatarId { get; set; }
+    [Networked] public bool IsProtectedNet { get; set; }
+
 
     public bool IsLocal { get; private set; }
 

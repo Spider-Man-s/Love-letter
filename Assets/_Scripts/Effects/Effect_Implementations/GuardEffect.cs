@@ -3,10 +3,15 @@ using UnityEngine;
 public class GuardEffect : ICardEffect
 {
     public void Resolve(GameManager game, int sourcePlayerId, EffectContext context)
+
     {
-        if (context.TargetPlayerId == null || context.GuessedCard == null)
+        if (context.TargetPlayerId == null)
         {
-            Debug.LogError("GuardEffect: missing context");
+            Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
+
+            game.RPC_AnnounceAction(
+                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+
             return;
         }
 
