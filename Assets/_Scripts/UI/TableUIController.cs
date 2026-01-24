@@ -90,6 +90,7 @@ public class TableUIController : MonoBehaviour
         GameManager.Instance.ResetVictoryTokens();
         GameManager.Instance.RPC_ResetVictoryCounters();
         GameManager.Instance.RestartMatch();
+        nextRoundButton.gameObject.SetActive(false);
 
     }
 

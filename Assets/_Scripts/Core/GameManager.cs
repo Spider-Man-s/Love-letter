@@ -533,7 +533,7 @@ public class GameManager : NetworkBehaviour
 
         EndTurn();
     }
-    private void SyncDeck()
+    public void SyncDeck()
     {
         RPC_SendDeckCount(Deck.Count);
         Deck.Print();
@@ -896,6 +896,11 @@ public class GameManager : NetworkBehaviour
         TableUIController.Instance.ShowAnnouncement(message);
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_ShowDiscard(int seatIndex, int cardType)
+    {
+        TableUIController.Instance.AddPlayedCard(seatIndex, new Card((CardType)cardType));
+    }
 
 
 
