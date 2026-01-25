@@ -15,23 +15,41 @@ public class SessionData : MonoBehaviour
 
     public void Setup(SessionInfo info)
     {
-        sessionName = info.Name;
-        gameNameText.text = info.Name;
-        playerCountText.text = $"{info.PlayerCount}/{info.MaxPlayers}";
 
+        sessionName = info.Name;
+        string displayName = info.Name;
+
+        if (info.Properties != null &&
+      info.Properties.TryGetValue("displayName", out SessionProperty val))
+        {
+            string dn = val;
+
+            if (!string.IsNullOrEmpty(dn))
+                gameNameText.text = dn;
+            else
+                gameNameText.text = sessionName;
+        }
+        else
+        {
+            gameNameText.text = sessionName;
+        }
+
+        playerCountText.text = $"{info.PlayerCount}/{info.MaxPlayers}";
         SessionStateType stateEnum = SessionStateType.Waiting;
 
         if (info.Properties != null &&
-            info.Properties.TryGetValue("state", out SessionProperty value))
+            info.Properties.TryGetValue("state", out SessionProperty stateProp))
         {
-            int val = (int)value;
-            stateEnum = (SessionStateType)val;
+            int stateInt = (int)stateProp;
+            stateEnum = (SessionStateType)stateInt;
         }
 
         statusText.text = stateEnum.ToString();
 
+        bool isWaiting = stateEnum == SessionStateType.Waiting;
+        bool hasSpace = info.PlayerCount < info.MaxPlayers;
 
-        joinButton.interactable = stateEnum == SessionStateType.Waiting;
+        joinButton.interactable = isWaiting && hasSpace;
 
         joinButton.onClick.RemoveAllListeners();
         joinButton.onClick.AddListener(OnJoinClicked);
@@ -39,12 +57,7 @@ public class SessionData : MonoBehaviour
 
     private void OnJoinClicked()
     {
-        BasicSpawner.Instance.StartGame(
-            GameMode.Client,
-            sessionName,
-            maxPlayers: 6,
-            isPrivate: false
-        );
+        BasicSpawner.Instance.StartGame(GameMode.Client, sessionName);
     }
 
 

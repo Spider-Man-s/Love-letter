@@ -15,13 +15,13 @@ public class CreateGame : MonoBehaviour
     [SerializeField] private Button returnButton;
     [SerializeField] private GameObject createGameMenu;
     [SerializeField] private GameObject sessionsMenu;
-    private const string _chars = "abcdefghijklmnoprstuzv";
+    private const string _chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private string sessionName = null;
     private string randWord = "";
 
     private void Awake()
     {
-        for (int i = 0; i < 8; i++) randWord += _chars[Random.Range(0, _chars.Length - 1)];
+        randWord = BasicSpawner.RoomCodeGenerator.Generate().ToUpper();
         autoFillGameName.text = randWord;
     }
     private void Start()
@@ -39,21 +39,20 @@ public class CreateGame : MonoBehaviour
     private void OnCreateClicked()
     {
         Debug.Log("[CreateGame] Create button clicked.");
-        if (string.IsNullOrEmpty(sessionName))
-        {
-            sessionName = randWord;
-        }
-        else
-        {
-            sessionName = gameNameInput.text;
-        }
+
+
+        string realRoomCode = randWord;
+
+        string displayName = string.IsNullOrEmpty(gameNameInput.text)
+            ? randWord
+            : gameNameInput.text;
 
         int maxPlayers = Mathf.RoundToInt(playerCountSlider.value);
         bool isPrivate = privateToggle.isOn;
 
-        Debug.Log($"Creating room: {sessionName}, max players: {maxPlayers}, private: {isPrivate}");
+        Debug.Log($"Creating room: {realRoomCode}, displayName: {displayName}, private: {isPrivate}");
 
-        BasicSpawner.Instance.CreateRoom(sessionName, maxPlayers, isPrivate);
+        BasicSpawner.Instance.CreateRoom(realRoomCode, maxPlayers, isPrivate, displayName);
     }
     private void OnReturnClicked()
     {

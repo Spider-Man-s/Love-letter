@@ -11221,7 +11221,7 @@ MonoBehaviour:
   refreshButton: {fileID: 730496441}
   returnButton: {fileID: 1556248355}
   joinCustomGameButton: {fileID: 1953259836}
-  gameCodeText: {fileID: 0}
+  gameCodeInput: {fileID: 197085719}
   sessionSlots:
   - {fileID: 1542429392}
   - {fileID: 1478213473}

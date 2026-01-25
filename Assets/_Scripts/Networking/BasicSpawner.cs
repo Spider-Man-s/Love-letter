@@ -162,17 +162,17 @@ namespace LoveLetter.Networking
             }
         }
 
-        public void CreateRoom(string sessionName, int maxPlayers, bool isPrivate)
+        public void CreateRoom(string sessionName, int maxPlayers, bool isPrivate, string displayName)
         {
             if (!IsLobbyReady)
             {
                 Debug.LogWarning("[CreateRoom] Cannot create room yet. Lobby not ready.");
                 return;
             }
-            StartGame(GameMode.Host, sessionName, maxPlayers, isPrivate);
+            StartGame(GameMode.Host, sessionName, maxPlayers, isPrivate, displayName);
         }
 
-        public async void StartGame(GameMode mode, string sessionName, int maxPlayers, bool isPrivate)
+        public async void StartGame(GameMode mode, string sessionName, int maxPlayers, bool isPrivate, string displayName)
         {
             if (_runner == null)
                 _runner = gameObject.AddComponent<NetworkRunner>();
@@ -180,23 +180,38 @@ namespace LoveLetter.Networking
             _runner.AddCallbacks(this);
             _runner.ProvideInput = false;
 
-            var props = new Dictionary<string, SessionProperty>
+            var props = new Dictionary<string, SessionProperty>()
             {
-                ["state"] = (int)SessionStateType.Waiting
+                ["state"] = (int)SessionStateType.Waiting,
+                ["displayName"] = displayName
             };
 
-            var scene = SceneRef.FromIndex(1);
+            await _runner.StartGame(new StartGameArgs()
+            {
+                GameMode = GameMode.Host,
+                SessionName = sessionName,     // FIXED: use the parameter
+                PlayerCount = maxPlayers,
+                IsVisible = !isPrivate,
+                Scene = SceneRef.FromIndex(1),
+                SceneManager = _networkSceneManager,
+                SessionProperties = props
+            });
+        }
 
+
+        public async void StartGame(GameMode mode, string sessionName)
+        {
+            if (_runner == null)
+                _runner = gameObject.AddComponent<NetworkRunner>();
+
+            _runner.AddCallbacks(this);
+            _runner.ProvideInput = false;
 
             await _runner.StartGame(new StartGameArgs()
             {
                 GameMode = mode,
                 SessionName = sessionName,
-                PlayerCount = maxPlayers,
-                IsVisible = !isPrivate,
-                Scene = scene,
-                SceneManager = _networkSceneManager,
-                SessionProperties = props
+                SceneManager = _networkSceneManager
             });
         }
 

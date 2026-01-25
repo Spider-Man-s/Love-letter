@@ -11,6 +11,8 @@ public class TableUIController : MonoBehaviour
 
     [Header("Start Game")]
     [SerializeField] private Button startGameButton;
+
+    [SerializeField] private TMP_Text gameCodeText;
     [Header("Restart Game")]
     [SerializeField] private Button restartGameButton;
     [SerializeField] private Button nextRoundButton;
@@ -44,7 +46,8 @@ public class TableUIController : MonoBehaviour
 
     private IEnumerator Start()
     {
-
+        string code = BasicSpawner.Instance.Runner.SessionInfo.Name;
+        gameCodeText.text = $"Code: {code}";
         handCards = new List<CardView>[6];
         playedCards = new List<CardView>[6];
         for (int i = 0; i < 6; i++)
