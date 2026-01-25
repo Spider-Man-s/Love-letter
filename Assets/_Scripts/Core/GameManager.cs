@@ -437,13 +437,14 @@ public class GameManager : NetworkBehaviour
             // Draw 2 cards
             var c1 = Deck.Draw();
             var c2 = Deck.Draw();
+
             Debug.Log($"[SERVER] Chancellor draws: {c1.Type}, {c2.Type}");
 
             player.DrawCard(c1);
             player.DrawCard(c2);
             Debug.Log("[SERVER] Hand after draws: " +
                       string.Join(",", player.Hand.Select(c => c.Type)));
-
+            BroadcastHandCount(playerId);
             SyncDeck();
             Debug.Log("[SERVER] Deck synced.");
 
@@ -639,18 +640,17 @@ public class GameManager : NetworkBehaviour
         hand.Add(keep);
 
         // Put cards back in deck
-        Deck.PutSecondToLast(secondLast);
+
         Deck.PutOnBottom(last);
+        Deck.PutSecondToLast(secondLast);
 
         SyncDeck();
         SyncPlayerHandToOwner(seatIndex);
         BroadcastHandCount(seatIndex);
 
         RPC_AnnounceAction($"Player {seatIndex} resolved Chancellor.");
-
-        // Continue game
-        CurrentTurnState = TurnState.WaitingForDraw;
-        StartTurn();
+        Deck.Print();
+        EndTurn();
     }
 
 

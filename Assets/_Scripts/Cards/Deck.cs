@@ -48,32 +48,32 @@ public class Deck
     }
     public void PutOnBottom(Card card)
     {
-        // Convert stack (top → bottom) to list
+        // Convert stack → list so list[0] = TOP, list[last] = BOTTOM
         var list = cards.ToList();
-        // Insert card at bottom (beginning)
-        list.Insert(0, card);
-        // Reverse back into push order
-        list.Reverse();
-        cards = new Stack<Card>(list);
+
+        // Add to the bottom (END of list)
+        list.Add(card);
+
+        // Now rebuild the stack so last element remains BOTTOM
+        cards = new Stack<Card>(list.Reverse<Card>());
     }
 
     public void PutSecondToLast(Card card)
     {
-        var list = cards.ToList(); // top → bottom
+        var list = cards.ToList(); // list[0] = top
 
-        if (list.Count < 1)
+        if (list.Count == 0)
         {
             PutOnBottom(card);
             return;
         }
 
-        // second from bottom = index 1 from bottom
-        list.Insert(1, card);
+        // Insert just before the last element (second from bottom)
+        list.Insert(list.Count - 1, card);
 
-        // restore push order
-        list.Reverse();
-        cards = new Stack<Card>(list);
+        cards = new Stack<Card>(list.Reverse<Card>());
     }
+
 
 
 
