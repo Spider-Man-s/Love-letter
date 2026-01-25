@@ -6,13 +6,14 @@ public class HandmaidenEffect : ICardEffect
     {
         var player = game.GetPlayer(sourcePlayerId);
         player.IsProtected = true;
+        string sourceName = game.GetPlayerName(sourcePlayerId);
         var pObj = BasicSpawner.Instance.GetPlayerObject(
     game.GetPlayerRefBySeat(sourcePlayerId)
 );
         if (pObj != null)
             pObj.GetComponent<Player>().IsProtectedNet = true;
 
-        Debug.Log($"Player {sourcePlayerId} is protected until next turn");
-        game.RPC_AnnounceAction($"Player {sourcePlayerId} is protected until next turn.");
+        Debug.Log($"{sourceName} is protected until next turn");
+        game.RPC_AnnounceAction($"{sourceName} is protected until next turn.");
     }
 }

@@ -7,6 +7,12 @@ using System.Linq;
 
 namespace LoveLetter.Networking
 {
+    public enum SessionStateType
+    {
+        Waiting = 0,
+        Playing = 1,
+        Finished = 2
+    }
     public class BasicSpawner : SingletonPersistent<BasicSpawner>, INetworkRunnerCallbacks
     {
         [Header("Player Prefabs")]
@@ -174,7 +180,13 @@ namespace LoveLetter.Networking
             _runner.AddCallbacks(this);
             _runner.ProvideInput = false;
 
+            var props = new Dictionary<string, SessionProperty>
+            {
+                ["state"] = (int)SessionStateType.Waiting
+            };
+
             var scene = SceneRef.FromIndex(1);
+
 
             await _runner.StartGame(new StartGameArgs()
             {
@@ -183,7 +195,8 @@ namespace LoveLetter.Networking
                 PlayerCount = maxPlayers,
                 IsVisible = !isPrivate,
                 Scene = scene,
-                SceneManager = _networkSceneManager
+                SceneManager = _networkSceneManager,
+                SessionProperties = props
             });
         }
 
@@ -283,7 +296,25 @@ namespace LoveLetter.Networking
             return null;
         }
 
+        public void SetSessionState(SessionStateType newState)
+        {
+            if (!Runner.IsServer)
+                return;
 
+            var currentProps = Runner.SessionInfo.Properties;
+
+            var updatedProps = new Dictionary<string, SessionProperty>();
+
+            foreach (var kvp in currentProps)
+                updatedProps[kvp.Key] = kvp.Value;
+
+            updatedProps["state"] = (int)newState;
+
+
+            Runner.SessionInfo.UpdateCustomProperties(updatedProps);
+
+            Debug.Log($"[Session] State updated to: {newState}");
+        }
 
         // ====================================================================
         // UNUSED CALLBACKS

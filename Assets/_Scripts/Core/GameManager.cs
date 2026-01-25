@@ -283,6 +283,19 @@ public class GameManager : NetworkBehaviour
         return PlayerRef.None;
     }
 
+    public string GetPlayerName(int seatIndex)
+    {
+        // Get PlayerRef associated with this seat
+        PlayerRef pref = GetPlayerRefBySeat(seatIndex);
+
+        // Resolve spawned network player object
+        var obj = BasicSpawner.Instance.GetPlayerObject(pref);
+        if (obj == null)
+            return $"Player {seatIndex}"; // fallback
+
+        var p = obj.GetComponent<Player>();
+        return p.PlayerName.ToString();  // NetworkString<_16>
+    }
 
 
     public void EliminatePlayer(int playerId)
@@ -648,7 +661,9 @@ public class GameManager : NetworkBehaviour
         SyncPlayerHandToOwner(seatIndex);
         BroadcastHandCount(seatIndex);
 
-        RPC_AnnounceAction($"Player {seatIndex} resolved Chancellor.");
+        string name = GetPlayerName(seatIndex);
+        RPC_AnnounceAction($"{name} resolved Chancellor.");
+
         Deck.Print();
         EndTurn();
     }
@@ -1036,6 +1051,14 @@ public class GameManager : NetworkBehaviour
 
         // TODO: Send message to UI popup
         TableUIController.Instance.ShowAnnouncement(message);
+    }
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_AnnounceWinner(string message)
+    {
+        Debug.Log("[ANNOUNCEWINNER] " + message);
+
+        // TODO: Send message to UI popup
+        TableUIController.Instance.ShowWinner(message);
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

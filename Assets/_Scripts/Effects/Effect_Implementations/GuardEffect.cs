@@ -10,13 +10,14 @@ public class GuardEffect : ICardEffect
             Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
 
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+                $"{game.GetPlayerName(sourcePlayerId)} discarded {GetType().Name.Replace("Effect", "")}.");
 
             return;
         }
 
         var target = game.GetPlayer(context.TargetPlayerId.Value);
-
+        string sourceName = game.GetPlayerName(sourcePlayerId);
+        string targetName = game.GetPlayerName(context.TargetPlayerId.Value);
         if (!target.IsAlive)
             return;
 
@@ -38,14 +39,14 @@ public class GuardEffect : ICardEffect
         {
             game.EliminatePlayer(target.PlayerId);
             game.RPC_AnnounceAction(
-        $"Player {sourcePlayerId} guessed {context.GuessedCard} correctly! Player {target.PlayerId} is eliminated."
+        $"{sourceName} guessed {context.GuessedCard} correctly! {targetName} is eliminated."
     );
         }
         else
         {
             Debug.Log("Guard guess was wrong");
             game.RPC_AnnounceAction(
-        $"Player {sourcePlayerId} guessed {context.GuessedCard} but was wrong."
+        $"{sourceName} guessed {context.GuessedCard} but was wrong."
     );
         }
     }

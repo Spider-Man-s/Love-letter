@@ -9,13 +9,14 @@ public class PriestEffect : ICardEffect
             Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
 
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+                $"{game.GetPlayerName(sourcePlayerId)} discarded {GetType().Name.Replace("Effect", "")}.");
 
             return;
         }
 
         int targetSeat = context.TargetPlayerId.Value;
-
+        string sourceName = game.GetPlayerName(sourcePlayerId);
+        string targetName = game.GetPlayerName(targetSeat);
         var target = game.GetPlayer(targetSeat);
         if (!target.IsAlive || target.IsProtected || target.Hand.Count == 0)
             return;
@@ -36,7 +37,7 @@ public class PriestEffect : ICardEffect
 
         // Public announce
         game.RPC_AnnounceAction(
-            $"Player {sourcePlayerId} played Priest and looked at Player {targetSeat}'s hand."
+            $"{sourceName} played Priest and looked at {targetName}'s hand."
         );
     }
 }

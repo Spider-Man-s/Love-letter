@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using LoveLetter.Networking;
 using TMPro;
+using System.Linq;
 public class TableUIController : MonoBehaviour
 {
     public static TableUIController Instance;
@@ -33,6 +34,7 @@ public class TableUIController : MonoBehaviour
     private List<CardView>[] handCards;
     private List<CardView>[] playedCards;
 
+    private bool gameActive = false;
     private void Awake()
     {
         Debug.Log("[UI] TableUIController Awake ON: " + gameObject.name);
@@ -57,23 +59,51 @@ public class TableUIController : MonoBehaviour
         while (GameManager.Instance == null)
             yield return null;
 
-        // Start button = HOST ONLY
+        /* Start button = HOST ONLY
         if (BasicSpawner.Instance.Runner.IsServer)
         {
+            startGameButton.gameObject.SetActive(false);
+
+            while (BasicSpawner.Instance.Runner.ActivePlayers.Count() < 2)
+                yield return null;
+
+            // Only the host sees the button
             startGameButton.gameObject.SetActive(true);
         }
 
         else
             startGameButton.gameObject.SetActive(false);
-
+*/
         startGameButton.onClick.AddListener(OnStartGameClicked);
         restartGameButton.onClick.AddListener(OnRestartGameClicked);
         nextRoundButton.onClick.AddListener(OnNextRoundClicked);
 
     }
 
+    private void Update()
+    {
+        CheckMinPLayers();
+    }
+
+    private void CheckMinPLayers()
+    {
+
+        if (BasicSpawner.Instance.Runner.IsServer)
+        {
+            if (BasicSpawner.Instance.Runner.ActivePlayers.Count() < 2 && !gameActive)
+            {
+                startGameButton.gameObject.SetActive(false);
+            }
+            else if (!gameActive)
+            {
+                startGameButton.gameObject.SetActive(true);
+            }
+        }
+    }
     private void OnStartGameClicked()
     {
+        gameActive = true;
+        BasicSpawner.Instance.SetSessionState(SessionStateType.Playing);
         GameManager.Instance.BeginMatch();
         startGameButton.gameObject.SetActive(false);
         if (BasicSpawner.Instance.Runner.IsServer)
@@ -106,8 +136,9 @@ public class TableUIController : MonoBehaviour
 
     public void ShowRoundWinner(int winnerSeat)
     {
-        GameManager.Instance.RPC_AnnounceAction($"Player {winnerSeat + 1} wins the round!");
-        winnerAnnouncementText.gameObject.SetActive(true);
+        string sourceName = GameManager.Instance.GetPlayerName(winnerSeat);
+        GameManager.Instance.RPC_AnnounceWinner($"{sourceName} wins the round!");
+
 
         // Host sees Next Round button
         if (BasicSpawner.Instance.Runner.IsServer)
@@ -160,6 +191,13 @@ public class TableUIController : MonoBehaviour
     {
         announcementText.text = msg;
         announcementText.gameObject.SetActive(true);
+
+    }
+
+    public void ShowWinner(string msg)
+    {
+        winnerAnnouncementText.text = msg;
+        winnerAnnouncementText.gameObject.SetActive(true);
 
     }
 

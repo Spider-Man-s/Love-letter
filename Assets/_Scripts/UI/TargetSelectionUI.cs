@@ -218,6 +218,7 @@ public class TargetSelectionUI : MonoBehaviour
         }
         bool hasValidTargets = CheckForValidTargets(allowSelfTarget);
         discardButton.gameObject.SetActive(!hasValidTargets);
+        confirmButton.interactable = hasValidTargets;
         return allowSelfTarget;
     }
 

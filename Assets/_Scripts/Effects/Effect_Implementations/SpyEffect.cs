@@ -6,8 +6,9 @@ public class SpyEffect : ICardEffect
     {
         var player = game.Players[sourcePlayerId];
         player.PlayedSpyThisRound = true;
+        string sourceName = game.GetPlayerName(sourcePlayerId);
 
-        Debug.Log($"Player {sourcePlayerId} played Spy");
-        game.RPC_AnnounceAction($"Player {sourcePlayerId} played Spy.");
+        Debug.Log($"{sourceName} played Spy");
+        game.RPC_AnnounceAction($"{sourceName} played Spy.");
     }
 }

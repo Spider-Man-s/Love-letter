@@ -9,7 +9,7 @@ public class BaronEffect : ICardEffect
             Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
 
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+                $"Player {game.GetPlayerName(sourcePlayerId)} discarded {GetType().Name.Replace("Effect", "")}.");
 
             return;
         }
@@ -18,6 +18,8 @@ public class BaronEffect : ICardEffect
 
         var source = game.GetPlayer(sourcePlayerId);
         var target = game.GetPlayer(targetId);
+        string sourceName = game.GetPlayerName(sourcePlayerId);
+        string targetName = game.GetPlayerName(targetId);
 
         if (!target.IsAlive || target.IsProtected)
         {
@@ -66,18 +68,18 @@ public class BaronEffect : ICardEffect
         {
             game.EliminatePlayer(targetId);
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} played Baron and eliminated Player {targetId}.");
+                $"{sourceName} played Baron and eliminated {targetName}.");
         }
         else if (outcome == -1)
         {
             game.EliminatePlayer(sourcePlayerId);
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} played Baron and was eliminated by Player {targetId}.");
+                $"{sourceName} played Baron and was eliminated by {targetName}.");
         }
         else
         {
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} played Baron against Player {targetId} but it was a tie.");
+                $"{sourceName} played Baron against {targetName} but it was a tie.");
         }
     }
 }

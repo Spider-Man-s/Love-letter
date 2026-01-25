@@ -10,7 +10,7 @@ public class KingEffect : ICardEffect
             Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
 
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} discarded {GetType().Name.Replace("Effect", "")}.");
+                $"{game.GetPlayerName(sourcePlayerId)} discarded {GetType().Name.Replace("Effect", "")}.");
 
             return;
         }
@@ -19,6 +19,9 @@ public class KingEffect : ICardEffect
 
         var source = game.GetPlayer(sourcePlayerId);
         var target = game.GetPlayer(targetId);
+
+        string sourceName = game.GetPlayerName(sourcePlayerId);
+        string targetName = game.GetPlayerName(targetId);
 
         if (!target.IsAlive || target.IsProtected)
         {
@@ -36,7 +39,7 @@ public class KingEffect : ICardEffect
         Debug.Log($"Player {sourcePlayerId} and Player {targetId} swapped hands");
 
         game.RPC_AnnounceAction(
-            $"Player {sourcePlayerId} played King and swapped hands with Player {targetId}.");
+            $"{sourceName} played King and swapped hands with {targetName}.");
 
         // NEW: Sync real hands to owners
         game.SyncPlayerHandToOwner(sourcePlayerId);

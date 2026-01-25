@@ -12,11 +12,14 @@ public class PrinceEffect : ICardEffect
 
         int targetId = context.TargetPlayerId.Value;
         var target = game.GetPlayer(targetId);
+        string sourceName = game.GetPlayerName(sourcePlayerId);
+        string targetName = game.GetPlayerName(targetId);
+
 
         if (!target.IsAlive)
         {
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} tried to use Prince on Player {targetId}, but they are eliminated.");
+                $"{sourceName} tried to use Prince on {targetName}, but they are eliminated.");
             return;
         }
 
@@ -24,7 +27,7 @@ public class PrinceEffect : ICardEffect
         if (target.IsProtected)
         {
             game.RPC_AnnounceAction(
-                $"Player {sourcePlayerId} tried to use Prince on Player {targetId}, but they were protected.");
+                $"{sourceName} tried to use Prince on {targetName}, but they were protected.");
             return;
         }
 
@@ -43,7 +46,7 @@ public class PrinceEffect : ICardEffect
 
 
         game.RPC_AnnounceAction(
-            $"Player {sourcePlayerId} played Prince. Player {targetId} discarded {discarded.Type}.");
+            $"{sourceName} played Prince. {targetName} discarded {discarded.Type}.");
 
         // Princess instant loss
         if (discarded.Type == CardType.Princess)

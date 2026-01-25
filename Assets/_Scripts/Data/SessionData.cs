@@ -18,7 +18,20 @@ public class SessionData : MonoBehaviour
         sessionName = info.Name;
         gameNameText.text = info.Name;
         playerCountText.text = $"{info.PlayerCount}/{info.MaxPlayers}";
-        statusText.text = info.IsOpen ? "Waiting" : "Playing";
+
+        SessionStateType stateEnum = SessionStateType.Waiting;
+
+        if (info.Properties != null &&
+            info.Properties.TryGetValue("state", out SessionProperty value))
+        {
+            int val = (int)value;
+            stateEnum = (SessionStateType)val;
+        }
+
+        statusText.text = stateEnum.ToString();
+
+
+        joinButton.interactable = stateEnum == SessionStateType.Waiting;
 
         joinButton.onClick.RemoveAllListeners();
         joinButton.onClick.AddListener(OnJoinClicked);
@@ -33,4 +46,7 @@ public class SessionData : MonoBehaviour
             isPrivate: false
         );
     }
+
+
+
 }
