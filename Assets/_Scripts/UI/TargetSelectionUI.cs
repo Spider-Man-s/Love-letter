@@ -311,6 +311,8 @@ public class TargetSelectionUI : MonoBehaviour
 
         foreach (var p in GameManager.Instance.Players)
         {
+            if (p == null)
+                continue;
             int seat = p.PlayerId;
 
             bool valid =
@@ -414,15 +416,10 @@ public class TargetSelectionUI : MonoBehaviour
             chancellorDrop3.gameObject.SetActive(false);
 
             chancellorConfirmButton.gameObject.SetActive(false);
+            Debug.Log("[ChancellorUI] Discard confirmed.");
+            chancellorPanel.SetActive(false);
+            GameManager.Instance.LocalPlayerPlayNoContext();
 
-            discardButton.gameObject.SetActive(true);
-            discardButton.onClick.RemoveAllListeners();
-            discardButton.onClick.AddListener(() =>
-            {
-                Debug.Log("[ChancellorUI] Discard confirmed.");
-                chancellorPanel.SetActive(false);
-                GameManager.Instance.LocalPlayerPlayNoContext();
-            });
 
             return;
         }
@@ -435,22 +432,22 @@ public class TargetSelectionUI : MonoBehaviour
             Debug.Log("[ChancellorUI] 2-card mode.");
 
             chancellorCard1.gameObject.SetActive(true);
-            chancellorCard2.gameObject.SetActive(true);
-            chancellorCard3.gameObject.SetActive(false);
+            chancellorCard2.gameObject.SetActive(false);
+            chancellorCard3.gameObject.SetActive(true);
 
             chancellorDrop1.gameObject.SetActive(true);
-            chancellorDrop2.gameObject.SetActive(true);
-            chancellorDrop3.gameObject.SetActive(false);
+            chancellorDrop2.gameObject.SetActive(false);
+            chancellorDrop3.gameObject.SetActive(true);
 
             chancellorCard1.Setup(hand[0]);
-            chancellorCard2.Setup(hand[1]);
+            chancellorCard3.Setup(hand[1]);
 
             chancellorDrop1.value = 0;
             chancellorDrop2.value = 1;
             chancellorDrop3.value = 2;
 
             chancellorDrop1.onValueChanged.AddListener(_ => ValidateChancellor());
-            chancellorDrop2.onValueChanged.AddListener(_ => ValidateChancellor());
+            chancellorDrop3.onValueChanged.AddListener(_ => ValidateChancellor());
 
             ValidateChancellor();
             return;
@@ -488,8 +485,8 @@ public class TargetSelectionUI : MonoBehaviour
     private void ValidateChancellor()
     {
         int d1 = chancellorDrop1.value;
-        int d2 = chancellorDrop2.value;
-        int d3 = chancellorDrop3.gameObject.activeSelf ? chancellorDrop3.value : 2;
+        int d2 = chancellorDrop2.gameObject.activeSelf ? chancellorDrop2.value : 1;
+        int d3 = chancellorDrop3.value;
 
         bool unique = d1 != d2 && d1 != d3 && d2 != d3;
 

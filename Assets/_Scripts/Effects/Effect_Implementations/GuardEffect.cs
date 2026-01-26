@@ -39,14 +39,14 @@ public class GuardEffect : ICardEffect
         {
             game.EliminatePlayer(target.PlayerId);
             game.RPC_AnnounceAction(
-        $"{sourceName} guessed {context.GuessedCard} correctly! {targetName} is eliminated."
+        $"{sourceName} guessed {targetName} has {context.GuessedCard} correctly! {targetName} is eliminated."
     );
         }
         else
         {
             Debug.Log("Guard guess was wrong");
             game.RPC_AnnounceAction(
-        $"{sourceName} guessed {context.GuessedCard} but was wrong."
+        $"{sourceName} guessed {targetName} has {context.GuessedCard} but was wrong."
     );
         }
     }

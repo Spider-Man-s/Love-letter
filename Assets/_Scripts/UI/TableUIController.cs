@@ -105,7 +105,7 @@ public class TableUIController : MonoBehaviour
     {
         if (!BasicSpawner.Instance.Runner.IsServer)
             return;
-        TargetSelectionUI.Instance.Close();
+        GameManager.Instance.RPC_CloseAllTargetUIs();
         GameManager.Instance.ResetVictoryTokens();
         GameManager.Instance.RPC_ResetVictoryCounters();
         GameManager.Instance.RestartMatch();
@@ -120,15 +120,16 @@ public class TableUIController : MonoBehaviour
             return;
 
         nextRoundButton.gameObject.SetActive(false);
-        TargetSelectionUI.Instance.Close();
+        GameManager.Instance.RPC_CloseAllTargetUIs();
         GameManager.Instance.RestartMatch();
     }
 
-    public void ShowRoundWinner(int winnerSeat)
+    public void ShowRoundWinner(string message)
     {
-        string sourceName = GameManager.Instance.GetPlayerName(winnerSeat);
-        GameManager.Instance.RPC_AnnounceWinner($"{sourceName} wins the round!");
+        // Announce the winner(s)
+        GameManager.Instance.RPC_AnnounceWinner(message);
 
+        // Allow host to proceed
         if (BasicSpawner.Instance.Runner.IsServer)
             nextRoundButton.gameObject.SetActive(true);
     }

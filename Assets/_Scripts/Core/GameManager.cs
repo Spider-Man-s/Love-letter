@@ -40,7 +40,11 @@ public class GameManager : NetworkBehaviour
     private int _lastRoundWinner = -1;
     private bool _roundHasEnded = false;
 
-
+    public struct RoundResult
+    {
+        public List<int> Winners;
+        public int SpyBonusSeat;
+    }
     public override void Spawned()
     {
         Instance = this;
@@ -187,6 +191,7 @@ public class GameManager : NetworkBehaviour
         for (int i = 0; i < Players.Count; i++)
             Players[i] = new PlayerState(i);
 
+        RPC_ResetAliveStates();
         Deck = new Deck(CardDatabase.CreateDeck());
         Deck.Shuffle();
         Deck.Shuffle();
@@ -349,6 +354,7 @@ public class GameManager : NetworkBehaviour
         }
 
         player.IsAlive = false;
+        RPC_SetAlive(playerId, false);
 
         Debug.Log($"Player {playerId} is eliminated");
 
@@ -375,6 +381,8 @@ public class GameManager : NetworkBehaviour
             target.Hand.Clear();
 
             Debug.Log($"Player {targetPlayerId} discarded {discarded}");
+            if (discarded.Type == CardType.Spy)
+                target.PlayedSpyThisRound = true;
 
             if (discarded.Type == CardType.Princess)
             {
@@ -505,7 +513,7 @@ public class GameManager : NetworkBehaviour
                 obj.GetComponent<Player>()
                     .RPC_OpenChancellorUI(playerId, originalDeckCount);
 
-                CurrentTurnState = TurnState.Resolving;
+                ServerResolveChancellor_NoChoices(playerId);
                 return;
             }
 
@@ -565,7 +573,7 @@ public class GameManager : NetworkBehaviour
         // ==============================
         player.RemoveCard(card);
         RPC_CardPlayed(playerId, (int)card.Type, player.Hand.Count);
-
+        SyncPlayerHandToOwner(playerId);
         CurrentTurnState = TurnState.Resolving;
 
         ResolveCard(card, playerId, context);
@@ -689,6 +697,8 @@ public class GameManager : NetworkBehaviour
 
     private void ResolveCard(Card card, int playerId, EffectContext context)
     {
+        if (card.Type == CardType.Spy)
+            Players[playerId].PlayedSpyThisRound = true;
         var effect = CardEffectFactory.Get(card.Type);
         effect.Resolve(this, playerId, context);
 
@@ -749,14 +759,29 @@ public class GameManager : NetworkBehaviour
         }
         else if (count == 2)
         {
-            // Special 2–card mode
-            // Only two choices exist. Valid mapping:
-            // 0 = keep, 1 = bottom
-            for (int i = 0; i < 2; i++)
+            // choices[0] → card index 0
+            // choices[2] → card index 1
+            for (int i = 0; i < choices.Length; i++)
             {
-                if (choices[i] == 0) keep = hand[i];
-                if (choices[i] == 1) bottom = hand[i];
+                Debug.Log($"[Chancellor] choices[{i}] = {choices[i]}");
             }
+
+            int c0 = choices[0];
+
+            if (c0 == 0)
+            {
+                keep = hand[0];
+                bottom = hand[1];
+            }
+
+            else if (c0 == 2)
+            {
+                keep = hand[1];
+                bottom = hand[0];
+            }
+
+
+
         }
 
         // VALIDATE FINAL SELECTIONS ===========================
@@ -869,7 +894,7 @@ public class GameManager : NetworkBehaviour
         player.IsProtected = false;
         var pObj = BasicSpawner.Instance.GetPlayerObject(
     GetPlayerRefBySeat(CurrentPlayerIndex)
-);
+    );
         if (pObj != null)
             pObj.GetComponent<Player>().IsProtectedNet = false;
         CurrentTurnState = TurnState.WaitingForDraw;
@@ -906,35 +931,63 @@ public class GameManager : NetworkBehaviour
 
     private void CheckRoundEnd()
     {
-        // A) Only one player alive
-        int aliveCount = Players.Count(p => p.IsAlive);
+        // A) only 1 player alive → single winner situation, no tie logic needed
+        int aliveCount = Players.Count(p => p != null && p.IsAlive);
         if (aliveCount == 1)
         {
-            int winner = Players.First(p => p.IsAlive).PlayerId;
-            EndRound(winner);
+            int loneWinner = Players.First(p => p != null && p.IsAlive).PlayerId;
+
+            var result = new RoundResult
+            {
+                Winners = new List<int> { loneWinner },
+                SpyBonusSeat = ComputeSpyBonus()   // use a helper
+            };
+
+            EndRound(result);
             return;
         }
 
-        // B) Deck is empty — compare highest hand card
+        // B) deck empty → determine highest hand
         if (Deck.Count == 0 && CurrentTurnState == TurnState.TurnEnded)
         {
-            int bestValue = Players
-                .Where(p => p.IsAlive)
-                .Max(p => (int)p.Hand[0].Type);
+            var alive = Players.Where(p => p != null && p.IsAlive).ToList();
+            int bestValue = alive.Max(p => (int)p.Hand[0].Type);
 
-            var winners = Players
-                .Where(p => p.IsAlive && (int)p.Hand[0].Type == bestValue)
+            var winners = alive
+                .Where(p => (int)p.Hand[0].Type == bestValue)
                 .Select(p => p.PlayerId)
                 .ToList();
 
-            int winnerForStart = winners[0];
-            EndRound(winnerForStart);
+            // find Spy bonus seat
+            var result = new RoundResult
+            {
+                Winners = winners,
+                SpyBonusSeat = ComputeSpyBonus()
+            };
+
+            EndRound(result);
             return;
         }
     }
+    private int ComputeSpyBonus()
+    {
+        var alive = Players.Where(p => p != null && p.IsAlive).ToList();
+
+        var spyUsers = alive
+            .Where(p => p.PlayedSpyThisRound)
+            .Select(p => p.PlayerId)
+            .ToList();
+
+        if (spyUsers.Count == 1)
+            return spyUsers[0];
+
+        // 0 or >1 spy users → no bonus
+        return -1;
+    }
 
 
-    private void EndRound(int winnerSeat)
+
+    private void EndRound(RoundResult result)
     {
         if (_roundHasEnded)
             return;
@@ -942,16 +995,75 @@ public class GameManager : NetworkBehaviour
         _roundHasEnded = true;
         _hasPendingCard = false;
 
-        Debug.Log("=== ROUND ENDED — Winner = " + winnerSeat + " ===");
+        Debug.Log("=== ROUND ENDED ===");
+        Debug.Log("Winners: " + string.Join(",", result.Winners));
+        Debug.Log("SpyBonusSeat: " + result.SpyBonusSeat);
 
-        _lastRoundWinner = winnerSeat;
-        _victoryTokens[winnerSeat]++;
+        // ------------------------------------------------
+        // Assign normal winner tokens
+        // ------------------------------------------------
+        foreach (int seat in result.Winners)
+        {
+            _victoryTokens[seat]++;
+            RPC_UpdateVictoryCounter(seat, _victoryTokens[seat]);
+        }
 
-        // Broadcast winner and update UI
-        RPC_RoundEnded(winnerSeat);
-        RPC_UpdateVictoryCounter(winnerSeat, _victoryTokens[winnerSeat]);
+        // next starting player = first normal winner
+        _lastRoundWinner = result.Winners[0];
 
-        // Stop game flow
+        // ------------------------------------------------
+        // Spy bonus
+        // ------------------------------------------------
+        if (result.SpyBonusSeat >= 0)
+        {
+            _victoryTokens[result.SpyBonusSeat]++;
+            RPC_UpdateVictoryCounter(result.SpyBonusSeat, _victoryTokens[result.SpyBonusSeat]);
+            string spyName = GetPlayerName(result.SpyBonusSeat);
+            RPC_AnnounceAction($"{spyName} gains a Spy bonus token.");
+
+        }
+
+        // ------------------------------------------------
+        // Reveal all final cards
+        // ------------------------------------------------
+        for (int i = 0; i < Players.Count; i++)
+        {
+            var p = Players[i];
+            if (p == null || !p.IsAlive)
+                continue;   // Skip dead or null players
+
+            if (p.Hand.Count > 0)
+            {
+                var finalCard = p.Hand[0];
+                RPC_RevealFinalCard(i, (int)finalCard.Type);
+
+                // Move the card to discard pile
+                p.Hand.Clear();
+                p.DiscardPile.Add(finalCard);
+
+                // Force sync to owner UI
+                SyncPlayerHandToOwner(i);
+                BroadcastHandCount(i);
+            }
+        }
+
+
+        // ------------------------------------------------
+        // UI Announcement
+        // ------------------------------------------------
+        RPC_RoundEnded(result.Winners.ToArray());
+        if (result.Winners.Count == 1)
+        {
+            string name = GetPlayerName(result.Winners[0]);
+            RPC_AnnounceWinner($"{name} wins the round.");
+        }
+        else
+        {
+            var names = result.Winners
+                .Select(w => GetPlayerName(w));
+
+            RPC_AnnounceWinner($"Tie! {string.Join(", ", names)} win the round.");
+        }
 
         DebugDumpState("EndRound");
     }
@@ -1092,11 +1204,27 @@ public class GameManager : NetworkBehaviour
     // ===================================================================
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-    private void RPC_RoundEnded(int winnerSeat)
+    private void RPC_RoundEnded(int[] winnerSeats)
     {
         _roundHasEnded = true;
         CurrentTurnState = TurnState.TurnEnded;
-        TableUIController.Instance.ShowRoundWinner(winnerSeat);
+
+        var names = winnerSeats
+       .Select(seat => GetPlayerName(seat))
+       .ToArray();
+
+        string winnerText;
+
+        if (names.Length == 1)
+        {
+            winnerText = $"{names[0]} wins the round.";
+        }
+        else
+        {
+            winnerText = $"Tie! {string.Join(", ", names)} win the round.";
+        }
+
+        TableUIController.Instance.ShowRoundWinner(winnerText);
     }
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     public void RPC_UnlockAllPlayers()
@@ -1324,6 +1452,36 @@ public class GameManager : NetworkBehaviour
         BuildPlayersFromSeatArray();
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_RevealFinalCard(int seatIndex, int cardType)
+    {
+        TableUIController.Instance.AddPlayedCard(seatIndex, new Card((CardType)cardType));
 
+    }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SetAlive(int seatIndex, bool alive)
+    {
+        if (Players[seatIndex] != null)
+            Players[seatIndex].IsAlive = alive;
+    }
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_ResetAliveStates() //and protective status
+    {
+        for (int i = 0; i < Players.Count; i++)
+        {
+            var ps = Players[i];
+            if (ps == null)
+                continue;
+
+            ps.IsAlive = true;
+            ps.IsProtected = false;
+        }
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_CloseAllTargetUIs()
+    {
+        TargetSelectionUI.Instance.Close();
+    }
 }

@@ -30,5 +30,6 @@ public class DeckView : MonoBehaviour
         CurrentCount = count;
         deckCard.gameObject.SetActive(count > 0);
         countText.text = count.ToString();
+        countText.gameObject.SetActive(count > 0);
     }
 }
