@@ -9,7 +9,7 @@ public class BaronEffect : ICardEffect
             Debug.Log($"{GetType().Name}: Player {sourcePlayerId} discarded the card (no valid targets).");
 
             game.RPC_AnnounceAction(
-                $"Player {game.GetPlayerName(sourcePlayerId)} discarded {GetType().Name.Replace("Effect", "")}.");
+                $"{game.GetPlayerName(sourcePlayerId)} discarded {GetType().Name.Replace("Effect", "")}.");
 
             return;
         }

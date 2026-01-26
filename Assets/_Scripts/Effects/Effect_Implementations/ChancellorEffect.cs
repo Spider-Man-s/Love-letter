@@ -1,39 +1,71 @@
 using UnityEngine;
-using System.Collections.Generic;
 using LoveLetter.Networking;
 using Fusion;
+
 public class ChancellorEffect : ICardEffect
 {
     public void Resolve(GameManager game, int sourcePlayerId, EffectContext context)
     {
         var player = game.GetPlayer(sourcePlayerId);
+        int deckCount = game.Deck.Count;
 
-        // Draw 2 cards
-        Card c1 = game.Deck.Draw();
-        Card c2 = game.Deck.Draw();
-
-        player.Hand.Add(c1);
-        player.Hand.Add(c2);
-
-        // Update deck count for everyone
-        game.SyncDeck();
-
-        // Sync the full 3-card hand to this client
-        game.SyncPlayerHandToOwner(sourcePlayerId);
-
-        // Find the NetworkObject of the player
-        PlayerRef owner = game.GetPlayerRefBySeat(sourcePlayerId);
-        var obj = BasicSpawner.Instance.GetPlayerObject(owner);
-
-        if (obj == null)
+        // ======================================================
+        // CASE 1: Deck has 0 cards → Chancellor is a dead card
+        // ======================================================
+        if (deckCount == 0)
         {
-            Debug.LogError("[ChancellorEffect] Player object is NULL — cannot open UI!");
+            Debug.Log("[Chancellor] Deck empty → No draw → No UI → No choices.");
+            // Sync (so clients see empty deck)
+            game.SyncDeck();
+
+            // Inform all clients
+            string name = game.GetPlayerName(sourcePlayerId);
+            game.RPC_AnnounceAction($"{name} played Chancellor, but the deck was empty.");
+
+            // End turn normally
+            game.ServerResolveChancellor_NoChoices(sourcePlayerId);
             return;
         }
 
-        // CALL THE RPC ON THE PLAYER COMPONENT (NOT GameManager)
-        obj.GetComponent<Player>()
-            .RPC_OpenChancellorUI(sourcePlayerId);
-    }
+        // ======================================================
+        // CASE 2: Deck has 1 card → draw only that one
+        // ======================================================
+        Card c1 = game.Deck.Draw();
+        player.Hand.Add(c1);
 
+        Card c2 = null;
+
+        if (deckCount >= 2)
+        {
+            c2 = game.Deck.Draw();
+            player.Hand.Add(c2);
+        }
+
+        // Now sync deck count to all clients
+        game.SyncDeck();
+
+        int handCount = player.Hand.Count; // Will be 2 or 3
+
+        // Sync hand to correct player ONLY
+        game.SyncPlayerHandToOwner(sourcePlayerId);
+
+        // ======================================================
+        // CASE 3: Show UI only if 2 or 3 cards exist
+        // ======================================================
+
+        PlayerRef owner = game.GetPlayerRefBySeat(sourcePlayerId);
+        var playerObj = BasicSpawner.Instance.GetPlayerObject(owner);
+
+        if (playerObj == null)
+        {
+            Debug.LogError("[ChancellorEffect] ERROR: Player object missing.");
+            return;
+        }
+
+        Debug.Log($"[Chancellor] Opening UI with hand count {handCount}");
+
+        // Show Chancellor panel (2-card or 3-card logic handled in UI)
+        playerObj.GetComponent<Player>()
+     .RPC_OpenChancellorUI(sourcePlayerId, deckCount);
+    }
 }

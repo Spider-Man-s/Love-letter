@@ -8,6 +8,7 @@ public class DeckView : MonoBehaviour
     [SerializeField] private Transform cardParent;
 
     private CardView deckCard;
+    public int CurrentCount { get; private set; } = 0;
     void Start()
     {
 
@@ -26,7 +27,7 @@ public class DeckView : MonoBehaviour
 
     public void UpdateCount(int count)
     {
-
+        CurrentCount = count;
         deckCard.gameObject.SetActive(count > 0);
         countText.text = count.ToString();
     }

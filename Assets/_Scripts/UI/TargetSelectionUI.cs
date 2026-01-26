@@ -71,8 +71,21 @@ public class TargetSelectionUI : MonoBehaviour
 
         Clear();
         Debug.Log("[UI:TargetSelection] Opening with cardId=" + cardId);
-        GameManager.Instance.DebugDumpState("TargetSelection");
 
+        // --- DEBUG BLOCK YOU REQUESTED ---
+        Debug.Log("=== DEBUG TARGET UI — PLAYER LIST ===");
+        for (int i = 0; i < GameManager.Instance.Players.Count; i++)
+        {
+            var psDbg = GameManager.Instance.Players[i];
+            if (psDbg == null)
+                Debug.Log($"Players[{i}] = NULL");
+            else
+                Debug.Log($"Players[{i}] Alive={psDbg.IsAlive} HandCount={psDbg.Hand.Count}");
+        }
+        Debug.Log("=== END DEBUG TARGET UI ===");
+        // ----------------------------------
+
+        GameManager.Instance.DebugDumpState("TargetSelection");
 
         // Determine what should be shown
         bool allowSelfTarget = ConfigureForCard(cardId);
@@ -87,7 +100,21 @@ public class TargetSelectionUI : MonoBehaviour
         foreach (var p in playerObjects)
         {
             int seat = p.SeatIndex;
+
+            // --- CRASH FIX: prevent null reference ---
+            if (seat < 0 || seat >= GameManager.Instance.Players.Count)
+            {
+                Debug.LogError($"[TargetSelectionUI] ERROR: Seat {seat} outside Players.Count={GameManager.Instance.Players.Count}");
+                continue; // skip invalid seats
+            }
+
             var ps = GameManager.Instance.GetPlayer(seat);
+            if (ps == null)
+            {
+                Debug.LogError($"[TargetSelectionUI] ERROR: Players[{seat}] is NULL");
+                continue; // prevents the nullref
+            }
+            // -----------------------------------------
 
             bool interactable =
                 ps.IsAlive &&
@@ -244,11 +271,31 @@ public class TargetSelectionUI : MonoBehaviour
             GameManager.Instance.LocalPlayerPlayTargetOnly(selectedPlayerSeat);
         }
 
-
+        ClearGroup();
         TargetPanel.SetActive(false);
     }
 
+    public void ClearGroup()
+    {// Clear playerSection
+        if (playerSection != null)
+        {
+            Toggle[] playerToggles = playerSection.GetComponentsInChildren<Toggle>();
+            foreach (var t in playerToggles)
+            {
+                t.SetIsOnWithoutNotify(false);
+            }
+        }
 
+        // Clear cardSection
+        if (cardSection != null)
+        {
+            Toggle[] cardToggles = cardSection.GetComponentsInChildren<Toggle>();
+            foreach (var t in cardToggles)
+            {
+                t.SetIsOnWithoutNotify(false);
+            }
+        }
+    }
     private void OnDiscardClicked()
     {
         Debug.Log("[UI] Discard clicked — playing card with no target");
@@ -296,6 +343,10 @@ public class TargetSelectionUI : MonoBehaviour
     public void Close()
     {
         TargetPanel.SetActive(false);
+        baronUIPanel.SetActive(false);
+        priestUIPanel.SetActive(false);
+        chancellorPanel.SetActive(false);
+
     }
 
     // ===============================
@@ -330,32 +381,98 @@ public class TargetSelectionUI : MonoBehaviour
         priestOpponentCard.Setup(new Card((CardType)cardType));
     }
 
-    public void OpenChancellorUI()
+    public void OpenChancellorUI(int deckBeforeDraw)
     {
-        Debug.Log("[CLIENT UI] OpenChancellorUI CALLED!");
+        Debug.Log("[CLIENT UI] Opening Chancellor with deckBeforeDraw = " + deckBeforeDraw);
+
         Clear();
         TargetPanel.SetActive(false);
-
-        Debug.Log("[UI] Opening Chancellor panel");
-
-        // Disable normal hand interactions
         TableUIController.Instance.SetLocalHandInteractable(false);
 
-        // Show panel
         chancellorPanel.SetActive(true);
 
         var hand = GameManager.Instance
             .GetPlayer(BasicSpawner.PlayerData.LocalSeatIndex)
             .Hand;
 
-        if (hand.Count != 3)
-            Debug.LogError("[ChancellorUI] Expected 3 cards after drawing!");
+        int handCount = hand.Count;
+        int originalDeck = deckBeforeDraw;
+
+        // ===========================
+        // CASE 0 — deck was 0
+        // ===========================
+        if (originalDeck == 0)
+        {
+            Debug.Log("[ChancellorUI] Auto-discard mode.");
+
+            chancellorCard1.gameObject.SetActive(false);
+            chancellorCard2.gameObject.SetActive(false);
+            chancellorCard3.gameObject.SetActive(false);
+
+            chancellorDrop1.gameObject.SetActive(false);
+            chancellorDrop2.gameObject.SetActive(false);
+            chancellorDrop3.gameObject.SetActive(false);
+
+            chancellorConfirmButton.gameObject.SetActive(false);
+
+            discardButton.gameObject.SetActive(true);
+            discardButton.onClick.RemoveAllListeners();
+            discardButton.onClick.AddListener(() =>
+            {
+                Debug.Log("[ChancellorUI] Discard confirmed.");
+                chancellorPanel.SetActive(false);
+                GameManager.Instance.LocalPlayerPlayNoContext();
+            });
+
+            return;
+        }
+
+        // ===========================
+        // CASE 1 — only 1 card available
+        // ===========================
+        if (originalDeck == 1)
+        {
+            Debug.Log("[ChancellorUI] 2-card mode.");
+
+            chancellorCard1.gameObject.SetActive(true);
+            chancellorCard2.gameObject.SetActive(true);
+            chancellorCard3.gameObject.SetActive(false);
+
+            chancellorDrop1.gameObject.SetActive(true);
+            chancellorDrop2.gameObject.SetActive(true);
+            chancellorDrop3.gameObject.SetActive(false);
+
+            chancellorCard1.Setup(hand[0]);
+            chancellorCard2.Setup(hand[1]);
+
+            chancellorDrop1.value = 0;
+            chancellorDrop2.value = 1;
+            chancellorDrop3.value = 2;
+
+            chancellorDrop1.onValueChanged.AddListener(_ => ValidateChancellor());
+            chancellorDrop2.onValueChanged.AddListener(_ => ValidateChancellor());
+
+            ValidateChancellor();
+            return;
+        }
+
+        // ===========================
+        // CASE 2 — normal mode (2+)
+        // ===========================
+        Debug.Log("[ChancellorUI] 3-card mode.");
+
+        chancellorCard1.gameObject.SetActive(true);
+        chancellorCard2.gameObject.SetActive(true);
+        chancellorCard3.gameObject.SetActive(true);
+
+        chancellorDrop1.gameObject.SetActive(true);
+        chancellorDrop2.gameObject.SetActive(true);
+        chancellorDrop3.gameObject.SetActive(true);
 
         chancellorCard1.Setup(hand[0]);
         chancellorCard2.Setup(hand[1]);
         chancellorCard3.Setup(hand[2]);
 
-        // Defaults
         chancellorDrop1.value = 0;
         chancellorDrop2.value = 1;
         chancellorDrop3.value = 2;
@@ -367,15 +484,18 @@ public class TargetSelectionUI : MonoBehaviour
         ValidateChancellor();
     }
 
+
     private void ValidateChancellor()
     {
         int d1 = chancellorDrop1.value;
         int d2 = chancellorDrop2.value;
-        int d3 = chancellorDrop3.value;
+        int d3 = chancellorDrop3.gameObject.activeSelf ? chancellorDrop3.value : 2;
 
         bool unique = d1 != d2 && d1 != d3 && d2 != d3;
+
         chancellorConfirmButton.interactable = unique;
     }
+
 
     public void OnChancellorConfirm()
     {

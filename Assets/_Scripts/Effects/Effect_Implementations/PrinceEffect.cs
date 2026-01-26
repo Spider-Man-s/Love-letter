@@ -60,7 +60,18 @@ public class PrinceEffect : ICardEffect
         }
 
         // DRAW NEW CARD (Prince Draw)
-        Card newCard = game.Deck.Draw();
+        Card newCard;
+
+        // If deck empty → draw BONUS CARD
+        if (game.Deck.Count == 0)
+        {
+            newCard = game.GetBonusCard();   // custom getter
+        }
+        else
+        {
+            newCard = game.Deck.Draw();
+        }
+
         target.DrawCard(newCard);
         game.SyncDeck();
 

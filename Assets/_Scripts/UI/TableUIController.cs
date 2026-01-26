@@ -62,21 +62,7 @@ public class TableUIController : MonoBehaviour
         while (GameManager.Instance == null)
             yield return null;
 
-        /* Start button = HOST ONLY
-        if (BasicSpawner.Instance.Runner.IsServer)
-        {
-            startGameButton.gameObject.SetActive(false);
 
-            while (BasicSpawner.Instance.Runner.ActivePlayers.Count() < 2)
-                yield return null;
-
-            // Only the host sees the button
-            startGameButton.gameObject.SetActive(true);
-        }
-
-        else
-            startGameButton.gameObject.SetActive(false);
-*/
         startGameButton.onClick.AddListener(OnStartGameClicked);
         restartGameButton.onClick.AddListener(OnRestartGameClicked);
         nextRoundButton.onClick.AddListener(OnNextRoundClicked);
@@ -134,6 +120,7 @@ public class TableUIController : MonoBehaviour
             return;
 
         nextRoundButton.gameObject.SetActive(false);
+        TargetSelectionUI.Instance.Close();
         GameManager.Instance.RestartMatch();
     }
 
@@ -142,8 +129,6 @@ public class TableUIController : MonoBehaviour
         string sourceName = GameManager.Instance.GetPlayerName(winnerSeat);
         GameManager.Instance.RPC_AnnounceWinner($"{sourceName} wins the round!");
 
-
-        // Host sees Next Round button
         if (BasicSpawner.Instance.Runner.IsServer)
             nextRoundButton.gameObject.SetActive(true);
     }
@@ -157,15 +142,27 @@ public class TableUIController : MonoBehaviour
     {
         int localSeatIndex = GlobalToLocalSeat(seatIndex);
         ClearHand(localSeatIndex);
+        bool hasCountess = cards.Any(c => c.Type == CardType.Countess);
 
         foreach (var card in cards)
         {
             var cv = Instantiate(cardPrefab, handGroups[localSeatIndex].transform, false);
             cv.Setup(card);
 
-            // Make only local card interactable
             cv.IsLocalCard = true;
-            cv.SetInteractable(true);
+
+            bool interactable = true;
+
+
+            if (hasCountess)
+            {
+                if (card.Type == CardType.Prince || card.Type == CardType.King)
+                {
+                    interactable = false;
+                }
+            }
+
+            cv.SetInteractable(interactable);
 
             handCards[localSeatIndex].Add(cv);
         }

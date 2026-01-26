@@ -14,6 +14,8 @@ public class GameManager : NetworkBehaviour
     public Deck Deck;
 
     private CardType _pendingCardType;
+    private Card _bonusCard;
+
     private bool _hasPendingCard;
     private DeckView deckView;
     public DeckView DeckView
@@ -32,7 +34,7 @@ public class GameManager : NetworkBehaviour
     [Networked, Capacity(6)]
     public NetworkArray<int> SeatToRawPlayer { get; } = default;
 
-
+    [SerializeField] private NetworkBehaviourId[] seatPlayerIds;
 
     private int[] _victoryTokens = new int[6];
     private int _lastRoundWinner = -1;
@@ -94,18 +96,23 @@ public class GameManager : NetworkBehaviour
     }
     private void BuildPlayersFromSeatArray()
     {
-        int count = 0;
-        for (int i = 0; i < SeatToRawPlayer.Length; i++)
+        Players = new List<PlayerState>(new PlayerState[6]); // ALWAYS 6 seats
+
+        for (int seat = 0; seat < 6; seat++)
         {
-            if (SeatToRawPlayer[i] != 0)
-                count++;
+            int raw = SeatToRawPlayer[seat];
+            if (raw != 0)
+            {
+                // Create or reuse PlayerState for this seat
+                Players[seat] = new PlayerState(seat);
+            }
+            else
+            {
+                Players[seat] = null;
+            }
         }
 
-        Players.Clear();
-        for (int i = 0; i < count; i++)
-            Players.Add(new PlayerState(i));
-
-        Debug.Log($"[GM] Players list rebuilt from SeatToRawPlayer. Count={Players.Count}");
+        Debug.Log($"[GM] Players list rebuilt. Seats populated.");
     }
 
 
@@ -144,6 +151,7 @@ public class GameManager : NetworkBehaviour
         Debug.Log("=== BeginMatch() CALLED ===");
         DebugSeatArray("BeginMatch");
         BuildPlayersFromSeatArray();
+        BroadcastSeatMap();
 
         if (TableUIController.Instance == null)
             Debug.LogError("UI ERROR: TableUIController.Instance is NULL");
@@ -257,12 +265,33 @@ public class GameManager : NetworkBehaviour
 
     private void DealInitialCards()
     {
+        Debug.Log("=== DEBUG DEAL PHASE ===");
+
+        // Print deck before removing bonus
+        Debug.Log("[DECK BEFORE BONUS]");
+        Deck.Print();
+
+        _bonusCard = Deck.Draw();
+        Debug.Log("[BONUS CARD] " + _bonusCard.Type);
+
+        // Deck after removing bonus card
+        Debug.Log("[DECK AFTER BONUS]");
+        Deck.Print();
         foreach (var player in Players)
             player.Hand.Add(Deck.Draw());
     }
 
     public PlayerState GetCurrentPlayer() => Players[CurrentPlayerIndex];
-    public PlayerState GetPlayer(int playerId) => Players[playerId];
+    public PlayerState GetPlayer(int seat)
+    {
+        if (seat < 0 || seat >= Players.Count)
+        {
+            Debug.LogError($"GetPlayer INVALID seat={seat}");
+            return null;
+        }
+
+        return Players[seat];
+    }
     public PlayerRef GetPlayerRefBySeat(int seat)
     {
         int raw = SeatToRawPlayer[seat];
@@ -297,16 +326,37 @@ public class GameManager : NetworkBehaviour
         return p.PlayerName.ToString();  // NetworkString<_16>
     }
 
+    public Card GetBonusCard()
+    {
+        var c = _bonusCard;
+        _bonusCard = null; // bonus can only be used once per round
+        return c;
+    }
 
     public void EliminatePlayer(int playerId)
     {
         var player = Players[playerId];
+
+        // Reveal and discard remaining hand card(s)
+        if (player.Hand.Count > 0)
+        {
+            Card last = player.Hand[0];
+            player.Hand.Clear();
+            player.DiscardPile.Add(last);
+
+            // Show the eliminated card to everyone
+            RPC_ShowDiscard(playerId, (int)last.Type);
+        }
+
         player.IsAlive = false;
-        player.Hand.Clear();
 
         Debug.Log($"Player {playerId} is eliminated");
-        CheckRoundEnd();
 
+        // UI update — hand count forced to zero
+        RPC_SendHandCount(playerId, 0);
+        SyncPlayerHandToOwner(playerId);
+
+        CheckRoundEnd();
     }
 
     public Card ForceDiscardAndDraw(int targetPlayerId)
@@ -407,12 +457,6 @@ public class GameManager : NetworkBehaviour
 
         SyncDeck();
 
-        if (Deck.Count == 0)
-        {
-            CheckRoundEnd();
-            return;
-        }
-
         CurrentTurnState = TurnState.WaitingForPlay;
     }
 
@@ -442,45 +486,78 @@ public class GameManager : NetworkBehaviour
             Debug.Log("[SERVER] Chancellor played by seat " + playerId);
 
             player.RemoveCard(card);
-            Debug.Log("[SERVER] Chancellor removed. Player now has: " +
-                      string.Join(",", player.Hand.Select(c => c.Type)));
-
             RPC_CardPlayed(playerId, (int)card.Type, player.Hand.Count);
 
-            // Draw 2 cards
-            var c1 = Deck.Draw();
-            var c2 = Deck.Draw();
+            // REAL count before draws
+            int originalDeckCount = Deck.Count;
 
-            Debug.Log($"[SERVER] Chancellor draws: {c1.Type}, {c2.Type}");
-
-            player.DrawCard(c1);
-            player.DrawCard(c2);
-            Debug.Log("[SERVER] Hand after draws: " +
-                      string.Join(",", player.Hand.Select(c => c.Type)));
-            BroadcastHandCount(playerId);
-            SyncDeck();
-            Debug.Log("[SERVER] Deck synced.");
-
-            // Send new hand to client
             PlayerRef owner = GetPlayerRefBySeat(playerId);
             var obj = BasicSpawner.Instance.GetPlayerObject(owner);
 
-            if (obj == null) Debug.LogError("[SERVER] Chancellor: owner object is NULL!");
+            // =======================
+            // CASE 1 — Deck empty
+            // =======================
+            if (originalDeckCount == 0)
+            {
+                Debug.Log("[SERVER] Chancellor: deck empty → discard only.");
 
-            Debug.Log("[SERVER] Sending full hand to client...");
+                // No draws, no UI except discard mode
+                obj.GetComponent<Player>()
+                    .RPC_OpenChancellorUI(playerId, originalDeckCount);
+
+                CurrentTurnState = TurnState.Resolving;
+                return;
+            }
+
+            // =======================
+            // CASE 2 — Only 1 card left
+            // =======================
+            if (originalDeckCount == 1)
+            {
+                Debug.Log("[SERVER] Chancellor: 1 card in deck.");
+
+                Card c1 = Deck.Draw();
+                player.Hand.Add(c1);
+
+                SyncDeck();
+                BroadcastHandCount(playerId);
+
+                obj.GetComponent<Player>().RPC_SendLocalHand(
+                    playerId,
+                    player.Hand.Select(c => (int)c.Type).ToArray()
+                );
+
+                obj.GetComponent<Player>()
+                    .RPC_OpenChancellorUI(playerId, originalDeckCount);
+
+                CurrentTurnState = TurnState.Resolving;
+                return;
+            }
+
+            // =======================
+            // CASE 3 — Normal (2+ cards)
+            // =======================
+            Card d1 = Deck.Draw();
+            Card d2 = Deck.Draw();
+
+            player.Hand.Add(d1);
+            player.Hand.Add(d2);
+
+            SyncDeck();
+            BroadcastHandCount(playerId);
+
             obj.GetComponent<Player>().RPC_SendLocalHand(
                 playerId,
                 player.Hand.Select(c => (int)c.Type).ToArray()
             );
 
-            Debug.Log("[SERVER] Sending RPC_OpenChancellorUI...");
-            obj.GetComponent<Player>().RPC_OpenChancellorUI(playerId);
-
-            Debug.Log("[SERVER] Chancellor path COMPLETE. Waiting for client choice.");
+            obj.GetComponent<Player>()
+                .RPC_OpenChancellorUI(playerId, originalDeckCount);
 
             CurrentTurnState = TurnState.Resolving;
             return;
         }
+
 
 
         // ==============================
@@ -621,42 +698,98 @@ public class GameManager : NetworkBehaviour
     public void ServerResolveChancellor(PlayerRef playerRef, int[] choices)
     {
         int seatIndex = GetSeatByPlayerRef(playerRef);
-
         var player = GetPlayer(seatIndex);
         var hand = player.Hand;
 
-        if (hand.Count != 3)
+        int count = hand.Count;
+
+        // SAFETY CHECKS =======================================
+        if (count == 0)
         {
-            Debug.LogError("[Chancellor] Hand is not 3 cards on confirm.");
+            Debug.LogError("[Chancellor] ERROR: Hand is empty on resolve.");
             return;
         }
+
+        if (count == 1)
+        {
+            Debug.LogWarning("[Chancellor] Only 1 card in hand → nothing to resolve.");
+            // No changes required — simply end turn
+            EndTurn();
+            return;
+        }
+
+        if (choices == null)
+        {
+            Debug.LogError("[Chancellor] choices NULL!");
+            return;
+        }
+
+        // If UI accidentally sent too many choices → trim safely
+        if (choices.Length > count)
+        {
+            Debug.LogWarning("[Chancellor] Received more choices than cards — trimming.");
+            System.Array.Resize(ref choices, count);
+        }
+
+        // ======================================================
 
         Card keep = null;
-        Card secondLast = null;
-        Card last = null;
+        Card bottom = null;
+        Card secondBottom = null;
 
-        for (int i = 0; i < 3; i++)
+        if (count == 3)
         {
-            if (choices[i] == 0) keep = hand[i];
-            else if (choices[i] == 1) secondLast = hand[i];
-            else if (choices[i] == 2) last = hand[i];
+            // Classic mode — 3 choices: 0=keep,1=second last,2=last
+            for (int i = 0; i < 3; i++)
+            {
+                if (choices[i] == 0) keep = hand[i];
+                if (choices[i] == 1) secondBottom = hand[i];
+                if (choices[i] == 2) bottom = hand[i];
+            }
+        }
+        else if (count == 2)
+        {
+            // Special 2–card mode
+            // Only two choices exist. Valid mapping:
+            // 0 = keep, 1 = bottom
+            for (int i = 0; i < 2; i++)
+            {
+                if (choices[i] == 0) keep = hand[i];
+                if (choices[i] == 1) bottom = hand[i];
+            }
         }
 
-        if (keep == null || secondLast == null || last == null)
+        // VALIDATE FINAL SELECTIONS ===========================
+        if (keep == null)
         {
-            Debug.LogError("[Chancellor] Invalid dropdown selection");
+            Debug.LogError("[Chancellor] INVALID keep selection.");
+            return;
+        }
+        if (bottom == null && count >= 2)
+        {
+            Debug.LogError("[Chancellor] INVALID bottom selection.");
             return;
         }
 
-        // Fix hand
+        // NOTE: secondBottom is optional (only in 3-card mode)
+
+        // FIX HAND =============================================
         hand.Clear();
         hand.Add(keep);
 
-        // Put cards back in deck
+        // STACK RETURN =========================================
+        if (count == 3)
+        {
+            Deck.PutOnBottom(bottom);
+            Deck.PutSecondToLast(secondBottom);
+        }
+        else if (count == 2)
+        {
+            Deck.PutOnBottom(bottom);
+            // second-to-last does not exist in this mode
+        }
 
-        Deck.PutOnBottom(last);
-        Deck.PutSecondToLast(secondLast);
-
+        // SYNC & UI ============================================
         SyncDeck();
         SyncPlayerHandToOwner(seatIndex);
         BroadcastHandCount(seatIndex);
@@ -664,9 +797,15 @@ public class GameManager : NetworkBehaviour
         string name = GetPlayerName(seatIndex);
         RPC_AnnounceAction($"{name} resolved Chancellor.");
 
-        Deck.Print();
         EndTurn();
     }
+    public void ServerResolveChancellor_NoChoices(int seatIndex)
+    {
+        // No choices were needed, just end the turn
+        Debug.Log("[Chancellor] No-choice flow. Ending turn.");
+        EndTurn();
+    }
+
 
 
     public int GetSeatByPlayerRef(PlayerRef playerRef)
@@ -687,7 +826,34 @@ public class GameManager : NetworkBehaviour
     }
 
 
+    public void BroadcastSeatMap()
+    {
+        var playerObjects = FindObjectsOfType<Player>();
+        int count = Players.Count;
 
+        int[] avatarIds = new int[count];
+        string[] names = new string[count];
+
+        // Initialise all as empty
+        for (int i = 0; i < count; i++)
+        {
+            avatarIds[i] = -1;
+            names[i] = "";
+        }
+
+        // Fill from real Player network objects
+        foreach (var p in playerObjects)
+        {
+            int seat = p.SeatIndex;
+            if (seat < 0 || seat >= count)
+                continue;
+
+            avatarIds[seat] = p.AvatarId;
+            names[seat] = p.PlayerName.ToString();
+        }
+
+        RPC_SendFullSeatMap(avatarIds, names);
+    }
 
 
     public void SyncDeck()
@@ -750,9 +916,8 @@ public class GameManager : NetworkBehaviour
         }
 
         // B) Deck is empty — compare highest hand card
-        if (Deck.Count == 0)
+        if (Deck.Count == 0 && CurrentTurnState == TurnState.TurnEnded)
         {
-            // Convert CardType to int before comparing
             int bestValue = Players
                 .Where(p => p.IsAlive)
                 .Max(p => (int)p.Hand[0].Type);
@@ -880,6 +1045,43 @@ public class GameManager : NetworkBehaviour
         Debug.Log("========== END STATE DUMP ==========");
     }
 
+    public void DebugPlayersList(string tag)
+    {
+        Debug.Log("===== PLAYER STATE DUMP: " + tag + " =====");
+
+        if (Players == null)
+        {
+            Debug.Log("Players LIST IS NULL!");
+            return;
+        }
+
+        Debug.Log("Players.Count = " + Players.Count);
+
+        for (int i = 0; i < Players.Count; i++)
+        {
+            var ps = Players[i];
+
+            if (ps == null)
+            {
+                Debug.Log($"Players[{i}] = NULL");
+                continue;
+            }
+
+            Debug.Log($"Players[{i}] Alive={ps.IsAlive} HandCount={ps.Hand.Count}");
+
+            if (ps.Hand.Count > 0)
+            {
+                string h = string.Join(",", ps.Hand.Select(c => c.Type.ToString()));
+                Debug.Log($"   Hand: {h}");
+            }
+            else
+            {
+                Debug.Log("   Hand: EMPTY");
+            }
+        }
+
+        Debug.Log("===== END PLAYER STATE DUMP =====");
+    }
 
 
 
@@ -1079,6 +1281,47 @@ public class GameManager : NetworkBehaviour
 
         var effect = new ChancellorEffect();
         effect.Resolve(this, seatIndex, ctx);
+    }
+
+
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    public void RPC_SendFullSeatMap(int[] avatarIds, string[] names)
+    {
+        Debug.Log("[GM] Received full seat map from host.");
+
+        int count = avatarIds.Length;
+
+        Players.Clear();
+        Players.Capacity = count;
+
+        // Rebuild PlayerState list — authoritative gameplay state stays untouched
+        for (int i = 0; i < count; i++)
+        {
+            if (SeatToRawPlayer[i] != 0)
+                Players.Add(new PlayerState(i));
+            else
+                Players.Add(null);
+        }
+
+        // Apply avatar + name to real networked Player objects
+        var playerObjects = FindObjectsOfType<Player>();
+
+        foreach (var p in playerObjects)
+        {
+            int seat = p.SeatIndex;
+            if (seat < 0 || seat >= count)
+                continue;
+
+            if (avatarIds[seat] >= 0)
+                p.AvatarId = avatarIds[seat];
+
+            if (!string.IsNullOrEmpty(names[seat]))
+                p.PlayerName = names[seat];
+        }
+
+        Debug.Log("[GM] Full seat map applied.");
+        BuildPlayersFromSeatArray();
     }
 
 

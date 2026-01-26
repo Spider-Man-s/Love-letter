@@ -45,8 +45,21 @@ public class Player : NetworkBehaviour
 
         UpdateVisuals();
         Invoke(nameof(NotifySeatArranger), 0.1f);
+        DEBUG_ListPlayers();
     }
 
+    public void DEBUG_ListPlayers()
+    {
+        var players = FindObjectsOfType<Player>();
+        Debug.Log("=== DEBUG: FOUND PLAYERS ===");
+
+        foreach (var p in players)
+        {
+            Debug.Log($"PlayerObj: {p.name}  Seat={p.SeatIndex} Auth={p.Object.InputAuthority}");
+        }
+
+        Debug.Log("=== END ===");
+    }
 
     private System.Collections.IEnumerator UpdateLocalSeatLater()
     {
@@ -168,23 +181,22 @@ public class Player : NetworkBehaviour
 
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-    public void RPC_OpenChancellorUI(int seatIndex)
+    public void RPC_OpenChancellorUI(int seatIndex, int deckBeforeDraw)
     {
-        Debug.Log("[CLIENT] RPC_OpenChancellorUI received for seat=" + seatIndex);
+        Debug.Log("[CLIENT] RPC_OpenChancellorUI for seat=" + seatIndex +
+                  " deckBefore=" + deckBeforeDraw);
 
         int localSeat = BasicSpawner.PlayerData.LocalSeatIndex;
-        Debug.Log($"[CLIENT] Local seat = {localSeat}");
-
 
         if (localSeat != seatIndex)
         {
-            Debug.Log("[CLIENT] Ignoring Chancellor UI (not for this player)");
+            Debug.Log("[CLIENT] Not for me.");
             return;
         }
 
-        Debug.Log("[CLIENT] Opening Chancellor UI NOW.");
-        TargetSelectionUI.Instance.OpenChancellorUI();
+        TargetSelectionUI.Instance.OpenChancellorUI(deckBeforeDraw);
     }
+
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_SubmitChancellorChoices(int[] choices)
     {
