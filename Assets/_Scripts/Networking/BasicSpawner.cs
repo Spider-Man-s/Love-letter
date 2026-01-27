@@ -13,6 +13,7 @@ namespace LoveLetter.Networking
         Playing = 1,
         Finished = 2
     }
+
     public class BasicSpawner : SingletonPersistent<BasicSpawner>, INetworkRunnerCallbacks
     {
         [Header("Player Prefabs")]
@@ -34,13 +35,12 @@ namespace LoveLetter.Networking
         private Transform[] _playerPositions;
         public Transform[] PlayerPositions => _playerPositions;
 
-
-
         [Header("Game Manager Prefab")]
         [SerializeField] private NetworkPrefabRef _gameManagerPrefab;
 
         static NetworkObject gameManagerInstance = null;
 
+        /* --------------------------- PLAYER DATA --------------------------- */
         public static class PlayerData
         {
             public static string LocalPlayerName;
@@ -48,6 +48,7 @@ namespace LoveLetter.Networking
             public static int LocalSeatIndex = -1;
         }
 
+        /* --------------------------- ROOM CODES --------------------------- */
         public static class RoomCodeGenerator
         {
             private const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -64,15 +65,30 @@ namespace LoveLetter.Networking
             }
         }
 
-        private void Awake()
+        /* ===================================================================
+         * RUNNER CREATION
+         * =================================================================== */
+        private void EnsureRunner()
         {
-            base.Awake();
-            _runner = GetComponent<NetworkRunner>();
-            _networkSceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
+            if (_runner != null)
+                return;
+
+            GameObject go = new GameObject("NetworkRunner");
+            DontDestroyOnLoad(go);
+
+            _runner = go.AddComponent<NetworkRunner>();
+            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+
+            _runner.AddCallbacks(this);
         }
 
+        /* ===================================================================
+         * CONNECT TO LOBBY
+         * =================================================================== */
         public void ConnectToLobby(string playerName, int selectedAvatarId)
         {
+            EnsureRunner();
+
             if (!string.IsNullOrEmpty(playerName))
                 _playerName = playerName;
 
@@ -82,8 +98,13 @@ namespace LoveLetter.Networking
             _runner.JoinSessionLobby(SessionLobby.ClientServer);
         }
 
+        /* ===================================================================
+         * START HOST / CLIENT
+         * =================================================================== */
         public async void StartHost()
         {
+            EnsureRunner();
+
             PlayerData.LocalPlayerName = _playerName;
             PlayerData.LocalAvatarId = PlayerPrefs.GetInt("SelectedAvatarId", 0);
 
@@ -100,6 +121,8 @@ namespace LoveLetter.Networking
 
         public async void StartClient(string roomCode)
         {
+            EnsureRunner();
+
             PlayerData.LocalPlayerName = _playerName;
             PlayerData.LocalAvatarId = PlayerPrefs.GetInt("SelectedAvatarId", 0);
 
@@ -111,47 +134,33 @@ namespace LoveLetter.Networking
             });
         }
 
-        // ====================================================================
-        // PLAYER JOIN FLOW
-        // ====================================================================
+        /* ===================================================================
+         * PLAYER JOINING
+         * =================================================================== */
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
             if (!runner.IsServer)
                 return;
 
-            // FIX #1: GameManager MUST exist BEFORE registering players
             if (gameManagerInstance == null)
             {
                 gameManagerInstance = runner.Spawn(_gameManagerPrefab, Vector3.zero, Quaternion.identity);
-                Debug.Log("GameManager network-spawned (OnPlayerJoined).");
             }
 
-            // Seat assignment (RawEncoded deterministic)
             int seatIndex = runner.ActivePlayers
                 .OrderBy(p => p.RawEncoded)
                 .ToList()
                 .IndexOf(player);
 
-            Debug.Log($"[OnPlayerJoined] Server assigning seat {seatIndex} to {player}");
-
             if (seatIndex >= PlayerPositions.Length)
-            {
-                Debug.LogWarning("Max players reached!");
                 return;
-            }
 
-            // Player spawn
             NetworkObject obj = runner.Spawn(_playerPrefab, Vector3.zero, Quaternion.identity, player);
             _spawnedPlayers[player] = obj;
 
             obj.GetComponent<Player>().SeatIndex = seatIndex;
             GameManager.Instance.AssignSeat(player, seatIndex);
-
-
-
-            Debug.Log($"Player {player} registered to seat {seatIndex}");
         }
-
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
@@ -162,23 +171,20 @@ namespace LoveLetter.Networking
             }
         }
 
+        /* ===================================================================
+         * CREATE ROOM
+         * =================================================================== */
         public void CreateRoom(string sessionName, int maxPlayers, bool isPrivate, string displayName)
         {
             if (!IsLobbyReady)
-            {
-                Debug.LogWarning("[CreateRoom] Cannot create room yet. Lobby not ready.");
                 return;
-            }
+
             StartGame(GameMode.Host, sessionName, maxPlayers, isPrivate, displayName);
         }
 
         public async void StartGame(GameMode mode, string sessionName, int maxPlayers, bool isPrivate, string displayName)
         {
-            if (_runner == null)
-                _runner = gameObject.AddComponent<NetworkRunner>();
-
-            _runner.AddCallbacks(this);
-            _runner.ProvideInput = false;
+            EnsureRunner();
 
             var props = new Dictionary<string, SessionProperty>()
             {
@@ -189,7 +195,7 @@ namespace LoveLetter.Networking
             await _runner.StartGame(new StartGameArgs()
             {
                 GameMode = GameMode.Host,
-                SessionName = sessionName,     // FIXED: use the parameter
+                SessionName = sessionName,
                 PlayerCount = maxPlayers,
                 IsVisible = !isPrivate,
                 Scene = SceneRef.FromIndex(1),
@@ -198,14 +204,9 @@ namespace LoveLetter.Networking
             });
         }
 
-
         public async void StartGame(GameMode mode, string sessionName)
         {
-            if (_runner == null)
-                _runner = gameObject.AddComponent<NetworkRunner>();
-
-            _runner.AddCallbacks(this);
-            _runner.ProvideInput = false;
+            EnsureRunner();
 
             await _runner.StartGame(new StartGameArgs()
             {
@@ -215,25 +216,19 @@ namespace LoveLetter.Networking
             });
         }
 
-        // ====================================================================
-        // SCENE LOAD
-        // ====================================================================
+        /* ===================================================================
+         * SCENE LOAD
+         * =================================================================== */
         public void OnSceneLoadDone(NetworkRunner runner)
         {
-            // FIX #3: Guarantee GM exists BEFORE seating uses it
             if (runner.IsServer && gameManagerInstance == null)
             {
                 gameManagerInstance = runner.Spawn(_gameManagerPrefab);
-                Debug.Log("GameManager spawned in scene (OnSceneLoadDone).");
             }
 
             GameObject positionsRoot = GameObject.Find("Players");
-
             if (positionsRoot == null)
-            {
-                Debug.LogError("PlayerPositions object not found in scene!");
                 return;
-            }
 
             _playerPositions = new Transform[6];
             _playerPositions[0] = positionsRoot.transform.Find("PlayerPositionOWN");
@@ -244,29 +239,42 @@ namespace LoveLetter.Networking
             _playerPositions[5] = positionsRoot.transform.Find("PlayerPosition_5");
         }
 
+        /* ===================================================================
+         * LEAVING ROOM
+         * =================================================================== */
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            Debug.Log($"Runner shutdown: {shutdownReason}");
+            ReturnToSessionScreen();
+        }
 
-            if (runner.GameMode == GameMode.Client)
+        public void LeaveRoom()
+        {
+            if (_runner != null)
             {
-                ReturnToSessionScreen();
+                var r = _runner;
+                _runner = null;
+                Destroy(r.gameObject); // important!
             }
+
+            SceneManager.LoadScene(0);
         }
 
         private void ReturnToSessionScreen()
         {
+            PlayerPrefs.SetInt("ReturnedFromGame", 1);
+
             if (_runner != null)
             {
-                _runner.Shutdown();
+                Destroy(_runner.gameObject);
                 _runner = null;
             }
+
             SceneManager.LoadScene(0);
         }
 
-        // ====================================================================
-        // HELPERS
-        // ====================================================================
+        /* ===================================================================
+         * HELPERS
+         * =================================================================== */
         public NetworkObject GetPlayerObject(PlayerRef pr)
         {
             return _spawnedPlayers.TryGetValue(pr, out var obj) ? obj : null;
@@ -281,25 +289,20 @@ namespace LoveLetter.Networking
         {
             _spawnedPlayers[player] = obj;
         }
+
         public static bool IsLobbyReady = false;
 
-        public void OnConnectedToServer(NetworkRunner runner)
-        {
-            Debug.Log("[Fusion] Connected to server (NameServer).");
-        }
+        public void OnConnectedToServer(NetworkRunner runner) { }
 
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
         {
-            // This callback only fires after joining the lobby
             if (!IsLobbyReady)
-            {
                 IsLobbyReady = true;
-                Debug.Log("[Fusion] Lobby ready.");
-            }
-            var sessions = BasicSpawner.Instance.Sessions;
-            sessions.Clear();
-            sessions.AddRange(sessionList);
+
+            _sessions.Clear();
+            _sessions.AddRange(sessionList);
         }
+
         public Player GetPlayerBySeat(int seatIndex)
         {
             foreach (var kv in _spawnedPlayers)
@@ -316,24 +319,18 @@ namespace LoveLetter.Networking
             if (!Runner.IsServer)
                 return;
 
-            var currentProps = Runner.SessionInfo.Properties;
+            var props = new Dictionary<string, SessionProperty>();
 
-            var updatedProps = new Dictionary<string, SessionProperty>();
+            foreach (var kvp in Runner.SessionInfo.Properties)
+                props[kvp.Key] = kvp.Value;
 
-            foreach (var kvp in currentProps)
-                updatedProps[kvp.Key] = kvp.Value;
-
-            updatedProps["state"] = (int)newState;
-
-
-            Runner.SessionInfo.UpdateCustomProperties(updatedProps);
-
-            Debug.Log($"[Session] State updated to: {newState}");
+            props["state"] = (int)newState;
+            Runner.SessionInfo.UpdateCustomProperties(props);
         }
 
-        // ====================================================================
-        // UNUSED CALLBACKS
-        // ====================================================================
+        /* ===================================================================
+         * UNUSED CALLBACKS
+         * =================================================================== */
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
@@ -347,6 +344,5 @@ namespace LoveLetter.Networking
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
-
     }
 }

@@ -600,7 +600,7 @@ public class GameManager : NetworkBehaviour
     {
         if (!_hasPendingCard)
         {
-            Debug.LogError("No pending card to play (no-context).");
+            Debug.Log("No pending card to play (no-context).");
             return;
         }
 

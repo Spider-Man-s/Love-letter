@@ -21,7 +21,7 @@ namespace LoveLetter.Login
         [SerializeField] private TextMeshProUGUI _autoFillPlayerName = null;
         [SerializeField] private TMP_InputField _playerName = null;
 
-        [Header("Menus (assign EXACTLY as described)")]
+        [Header("Menus")]
         [SerializeField] private GameObject _mainMenu = null;        // BeginScreen
         [SerializeField] private GameObject _lobbyMenu = null;       // LobbyScreen
         [SerializeField] private GameObject _playerNameMenu = null;  // LobbyScreen/PlayerMenu
@@ -35,23 +35,21 @@ namespace LoveLetter.Login
         private void Awake()
         {
 
-            // Generate random name
             string randWord = "";
             for (int i = 0; i < 8; i++)
                 randWord += _chars[Random.Range(0, _chars.Length - 1)];
             _autoFillPlayerName.text = randWord;
 
-            // START BUTTON: go to lobby + player menu
+
             _startButton.onClick.AddListener(() =>
             {
-                _mainMenu.SetActive(false);           // BeginScreen OFF
-                _lobbyMenu.SetActive(true);           // LobbyScreen ON
+                _mainMenu.SetActive(false);
+                _lobbyMenu.SetActive(true);
 
-                _playerNameMenu.SetActive(true);      // Show PlayerMenu
-                _sessionsMenu.SetActive(false);       // Hide SessionsScreen
+                _playerNameMenu.SetActive(true);
+                _sessionsMenu.SetActive(false);
             });
 
-            // QUIT BUTTON
             _quitButton.onClick.AddListener(() =>
             {
 #if UNITY_EDITOR
@@ -61,16 +59,15 @@ namespace LoveLetter.Login
 #endif
             });
 
-            // RETURN BUTTON: back to BeginScreen
             _returnButton.onClick.AddListener(() =>
             {
-                _mainMenu.SetActive(true);            // BeginScreen ON
-                _lobbyMenu.SetActive(false);          // LobbyScreen OFF
-                _playerNameMenu.SetActive(false);     // PlayerMenu OFF
-                _sessionsMenu.SetActive(false);       // SessionsScreen OFF
+                _mainMenu.SetActive(true);
+                _lobbyMenu.SetActive(false);
+                _playerNameMenu.SetActive(false);
+                _sessionsMenu.SetActive(false);
             });
 
-            // CONFIRM PLAYER INFO
+
             _confirmPlayerInfoButton.onClick.AddListener(OnConfirmPlayerInfo);
         }
 
@@ -103,7 +100,7 @@ namespace LoveLetter.Login
 
             BasicSpawner.Instance.ConnectToLobby(enteredName, selectedAvatarId);
 
-            // Switch UI screens
+
             _playerNameMenu.SetActive(false);
             _sessionsMenu.SetActive(true);
         }
