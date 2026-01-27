@@ -27,7 +27,7 @@ namespace LoveLetter.Login
         [SerializeField] private GameObject createNewGameMenu = null;
         [SerializeField] private GameObject sessionsMenu = null;
         [SerializeField] private GameObject playerMenu = null;
-
+        private bool callbacksAdded = false;
         private void Start()
         {
             createRoomButton.onClick.AddListener(OnCreateRoomClicked);
@@ -52,10 +52,13 @@ namespace LoveLetter.Login
             }
 
             BasicSpawner.Instance.EnsureRunner();
-            BasicSpawner.Instance.Runner.AddCallbacks(this);
+            if (BasicSpawner.Instance.Runner != null)
+                BasicSpawner.Instance.Runner.AddCallbacks(this);
 
             RefreshSessionList();
         }
+
+
 
 
         private void OnCreateRoomClicked()
@@ -82,19 +85,16 @@ namespace LoveLetter.Login
                 return;
             }
 
-            // 1. Check if room exists in visible PUBLIC lobby list
             bool existsInLobby = BasicSpawner.Instance.Sessions
                 .Exists(s => s.Name.Equals(code, System.StringComparison.OrdinalIgnoreCase));
 
             if (existsInLobby)
             {
-                // Join public room directly
                 Debug.Log($"Joining visible public room: {code}");
                 BasicSpawner.Instance.StartClient(code);
                 return;
             }
 
-            // 2. If it's not in the lobby it may be PRIVATE → Attempt join
             Debug.Log($"Room not found in lobby, trying private join: {code}");
             TryJoinRoomByCode(code);
         }

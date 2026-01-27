@@ -28,7 +28,6 @@ public class Player : NetworkBehaviour
     {
         Debug.Log($"[Player.Spawned] Object {Object.Id} HasInputAuth={Object.HasInputAuthority} => SeatIndex={SeatIndex}");
 
-        // Register THIS player object on every machine
         BasicSpawner.Instance.RegisterSpawnedPlayer(Object.InputAuthority, Object);
 
         IsLocal = Object.HasInputAuthority;
@@ -63,13 +62,10 @@ public class Player : NetworkBehaviour
 
     private System.Collections.IEnumerator UpdateLocalSeatLater()
     {
-        yield return null; // Wait 1 frame for SeatIndex to sync from server
+        yield return null;
         BasicSpawner.PlayerData.LocalSeatIndex = SeatIndex;
     }
 
-    // ====================================================================
-    // UPDATE LOOP (Fusion 2 replacement for OnChanged)
-    // ====================================================================
     public override void Render()
     {
         if (SeatIndex != lastSeatIndex)
@@ -94,7 +90,6 @@ public class Player : NetworkBehaviour
 
         if (Object.HasInputAuthority)
         {
-            // Same as Spawned(): delayed safe update
             StartCoroutine(UpdateLocalSeatLater());
         }
     }
@@ -155,10 +150,8 @@ public class Player : NetworkBehaviour
 
         Debug.Log($"[CLIENT] Received hand update for seat {seatIndex}. Cards: {string.Join(",", cardTypes)}");
 
-        // FIX: Sync real game state on client
         GameManager.Instance.GetPlayer(seatIndex).Hand = cards;
 
-        // UI update
         TableUIController.Instance.SetLocalHand(seatIndex, cards);
     }
 

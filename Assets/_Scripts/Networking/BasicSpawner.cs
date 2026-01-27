@@ -74,7 +74,7 @@ namespace LoveLetter.Networking
         /* ===================================================================
          * RUNNER CREATION
          * =================================================================== */
-        public void EnsureRunner()
+        public async void EnsureRunner()
         {
             if (_runner != null)
                 return;
@@ -86,7 +86,20 @@ namespace LoveLetter.Networking
             _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
 
             _runner.AddCallbacks(this);
-            Debug.Log("[BasicSpawner] Runner created.");
+
+            Debug.Log("[BasicSpawner] Runner created. Joining lobby...");
+
+            var result = await _runner.JoinSessionLobby(SessionLobby.ClientServer);
+
+            if (result.Ok)
+            {
+                Debug.Log("[BasicSpawner] Joined lobby successfully.");
+                SessionView.Instance?.RefreshSessionList();
+            }
+            else
+            {
+                Debug.LogError("[BasicSpawner] Failed to join lobby: " + result.ShutdownReason);
+            }
         }
 
         /* ===================================================================
@@ -103,6 +116,28 @@ namespace LoveLetter.Networking
             PlayerData.LocalAvatarId = selectedAvatarId;
 
             _runner.JoinSessionLobby(SessionLobby.ClientServer);
+        }
+        public async void ReconnectToLobby()
+        {
+            if (_runner != null)
+            {
+                Destroy(_runner.gameObject);
+                _runner = null;
+            }
+
+            GameObject go = new GameObject("NetworkRunner");
+            DontDestroyOnLoad(go);
+
+            _runner = go.AddComponent<NetworkRunner>();
+            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+            _runner.AddCallbacks(this);
+
+            Debug.Log("[BasicSpawner] Reconnecting to lobby...");
+
+            var result = await _runner.JoinSessionLobby(SessionLobby.ClientServer);
+
+            if (!result.Ok)
+                Debug.LogError("[BasicSpawner] Failed to reconnect: " + result.ShutdownReason);
         }
 
         /* ===================================================================
@@ -167,6 +202,7 @@ namespace LoveLetter.Networking
 
             obj.GetComponent<Player>().SeatIndex = seatIndex;
             GameManager.Instance.AssignSeat(player, seatIndex);
+            UpdatePlayerCount();
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -176,30 +212,12 @@ namespace LoveLetter.Networking
                 runner.Despawn(obj);
                 _spawnedPlayers.Remove(player);
             }
+            if (runner.IsServer)
+                UpdatePlayerCount();
         }
 
 
-        public void ReconnectToLobby()
-        {
 
-            if (_runner != null)
-            {
-                Destroy(_runner.gameObject);
-                _runner = null;
-            }
-
-            GameObject go = new GameObject("NetworkRunner");
-            DontDestroyOnLoad(go);
-
-            _runner = go.AddComponent<NetworkRunner>();
-            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
-
-            _runner.AddCallbacks(this);
-
-            _runner.JoinSessionLobby(SessionLobby.ClientServer);
-
-            Debug.Log("[BasicSpawner] Reconnected to lobby.");
-        }
 
         /* ===================================================================
          * CREATE ROOM
@@ -284,12 +302,19 @@ namespace LoveLetter.Networking
             }
         }
 
-        public void LeaveRoom()
+        public async void LeaveRoom()
         {
-            Debug.Log("[BasicSpawner] LeaveRoom()");
-
             ManualLeave = true;
-            PlayerPrefs.SetInt("ReturnedFromGame", 1);
+
+            if (_runner != null && _runner.IsServer)
+            {
+                _runner.SessionInfo.UpdateCustomProperties(new Dictionary<string, SessionProperty> { ["closed"] = 1 });
+                await _runner.Shutdown(true);
+            }
+            else if (_runner != null)
+            {
+                await _runner.Shutdown();
+            }
 
             if (_runner != null)
             {
@@ -297,13 +322,13 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
+            SceneManager.sceneLoaded += OnMenuLoaded;
             SceneManager.LoadScene(0);
         }
 
         public void ReturnToMainMenu()
         {
             ManualLeave = true;
-            LeaveToMainMenu = true;
 
             if (_runner != null)
             {
@@ -311,12 +336,12 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
+            SceneManager.sceneLoaded += OnMenuLoaded;
             SceneManager.LoadScene(0);
         }
         public void ReturnToSessionList()
         {
             ManualLeave = true;
-            LeaveToMainMenu = false;
 
             PlayerPrefs.SetInt("ReturnedFromGame", 1);
 
@@ -326,6 +351,7 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
+            SceneManager.sceneLoaded += OnMenuLoaded;
             SceneManager.LoadScene(0);
         }
 
@@ -370,6 +396,21 @@ namespace LoveLetter.Networking
             }
             return null;
         }
+        private void UpdatePlayerCount()
+        {
+            if (!Runner.IsServer)
+                return;
+
+            int count = Runner.ActivePlayers.Count();
+
+            var props = new Dictionary<string, SessionProperty>();
+            foreach (var kvp in Runner.SessionInfo.Properties)
+                props[kvp.Key] = kvp.Value;
+
+            props["players"] = count;
+
+            Runner.SessionInfo.UpdateCustomProperties(props);
+        }
 
         public void SetSessionState(SessionStateType newState)
         {
@@ -377,12 +418,19 @@ namespace LoveLetter.Networking
                 return;
 
             var props = new Dictionary<string, SessionProperty>();
-
             foreach (var kvp in Runner.SessionInfo.Properties)
                 props[kvp.Key] = kvp.Value;
 
             props["state"] = (int)newState;
+
             Runner.SessionInfo.UpdateCustomProperties(props);
+
+            Debug.Log($"[BasicSpawner] Session state updated → {newState}");
+        }
+        private void OnMenuLoaded(Scene s, LoadSceneMode m)
+        {
+            SceneManager.sceneLoaded -= OnMenuLoaded;
+            EnsureRunner();
         }
 
         /* ===================================================================
@@ -401,5 +449,28 @@ namespace LoveLetter.Networking
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
+
+
+        /* ===================================================================
+         * RPC
+         * =================================================================== */
+
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        public void RPC_HostClosingRoom()
+        {
+            ManualLeave = true;
+
+            PlayerPrefs.SetInt("ReturnedFromGame", 1);
+
+            if (_runner != null)
+            {
+                Destroy(_runner.gameObject);
+                _runner = null;
+            }
+
+            SceneManager.LoadScene(0);
+        }
+
     }
 }

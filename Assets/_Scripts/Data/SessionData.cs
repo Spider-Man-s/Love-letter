@@ -15,42 +15,70 @@ public class SessionData : MonoBehaviour
 
     public void Setup(SessionInfo info)
     {
-
         sessionName = info.Name;
-        string displayName = info.Name;
 
+        /* ---------------------------------------------------------
+         * DISPLAY NAME
+         * --------------------------------------------------------- */
         if (info.Properties != null &&
-      info.Properties.TryGetValue("displayName", out SessionProperty val))
+            info.Properties.TryGetValue("displayName", out SessionProperty val))
         {
             string dn = val;
-
-            if (!string.IsNullOrEmpty(dn))
-                gameNameText.text = dn;
-            else
-                gameNameText.text = sessionName;
+            gameNameText.text = string.IsNullOrEmpty(dn) ? sessionName : dn;
         }
         else
         {
             gameNameText.text = sessionName;
         }
 
+        /* ---------------------------------------------------------
+         * CLOSED ROOM CHECK
+         * --------------------------------------------------------- */
+        bool isClosedRoom =
+            (info.Properties != null &&
+             info.Properties.TryGetValue("closed", out SessionProperty closedProp) &&
+             (int)closedProp == 1);
+
+        if (isClosedRoom)
+        {
+            // Force UI state
+            playerCountText.text = "-";
+            statusText.text = "Closed";
+            joinButton.interactable = false;
+
+            Debug.Log($"[SessionData] Room {sessionName} is CLOSED → hiding join.");
+            return;
+        }
+
+        /* ---------------------------------------------------------
+         * PLAYER COUNT
+         * --------------------------------------------------------- */
         playerCountText.text = $"{info.PlayerCount}/{info.MaxPlayers}";
+
+        /* ---------------------------------------------------------
+         * STATE (Waiting / Playing / Finished)
+         * --------------------------------------------------------- */
         SessionStateType stateEnum = SessionStateType.Waiting;
 
         if (info.Properties != null &&
             info.Properties.TryGetValue("state", out SessionProperty stateProp))
         {
-            int stateInt = (int)stateProp;
-            stateEnum = (SessionStateType)stateInt;
+            stateEnum = (SessionStateType)(int)stateProp;
         }
 
         statusText.text = stateEnum.ToString();
 
+        /* ---------------------------------------------------------
+         * ENABLE/DISABLE JOIN BUTTON
+         * --------------------------------------------------------- */
         bool isWaiting = stateEnum == SessionStateType.Waiting;
         bool hasSpace = info.PlayerCount < info.MaxPlayers;
 
         joinButton.interactable = isWaiting && hasSpace;
 
+        /* ---------------------------------------------------------
+         * CLICK -> JOIN
+         * --------------------------------------------------------- */
         joinButton.onClick.RemoveAllListeners();
         joinButton.onClick.AddListener(OnJoinClicked);
     }
