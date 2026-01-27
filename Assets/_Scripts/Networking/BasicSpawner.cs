@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Linq;
+using LoveLetter.Login;
+
 
 namespace LoveLetter.Networking
 {
@@ -40,6 +42,10 @@ namespace LoveLetter.Networking
 
         static NetworkObject gameManagerInstance = null;
 
+        private bool ManualLeave = false;
+        private bool LeaveToMainMenu = false;
+
+
         /* --------------------------- PLAYER DATA --------------------------- */
         public static class PlayerData
         {
@@ -68,7 +74,7 @@ namespace LoveLetter.Networking
         /* ===================================================================
          * RUNNER CREATION
          * =================================================================== */
-        private void EnsureRunner()
+        public void EnsureRunner()
         {
             if (_runner != null)
                 return;
@@ -80,6 +86,7 @@ namespace LoveLetter.Networking
             _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
 
             _runner.AddCallbacks(this);
+            Debug.Log("[BasicSpawner] Runner created.");
         }
 
         /* ===================================================================
@@ -171,6 +178,29 @@ namespace LoveLetter.Networking
             }
         }
 
+
+        public void ReconnectToLobby()
+        {
+
+            if (_runner != null)
+            {
+                Destroy(_runner.gameObject);
+                _runner = null;
+            }
+
+            GameObject go = new GameObject("NetworkRunner");
+            DontDestroyOnLoad(go);
+
+            _runner = go.AddComponent<NetworkRunner>();
+            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+
+            _runner.AddCallbacks(this);
+
+            _runner.JoinSessionLobby(SessionLobby.ClientServer);
+
+            Debug.Log("[BasicSpawner] Reconnected to lobby.");
+        }
+
         /* ===================================================================
          * CREATE ROOM
          * =================================================================== */
@@ -244,23 +274,50 @@ namespace LoveLetter.Networking
          * =================================================================== */
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            ReturnToSessionScreen();
+            if (ManualLeave)
+                return;
+
+            if (!runner.IsServer)
+            {
+                PlayerPrefs.SetInt("ReturnedFromGame", 1);
+                SceneManager.LoadScene(0);
+            }
         }
 
         public void LeaveRoom()
         {
+            Debug.Log("[BasicSpawner] LeaveRoom()");
+
+            ManualLeave = true;
+            PlayerPrefs.SetInt("ReturnedFromGame", 1);
+
             if (_runner != null)
             {
-                var r = _runner;
+                Destroy(_runner.gameObject);
                 _runner = null;
-                Destroy(r.gameObject); // important!
             }
 
             SceneManager.LoadScene(0);
         }
 
-        private void ReturnToSessionScreen()
+        public void ReturnToMainMenu()
         {
+            ManualLeave = true;
+            LeaveToMainMenu = true;
+
+            if (_runner != null)
+            {
+                Destroy(_runner.gameObject);
+                _runner = null;
+            }
+
+            SceneManager.LoadScene(0);
+        }
+        public void ReturnToSessionList()
+        {
+            ManualLeave = true;
+            LeaveToMainMenu = false;
+
             PlayerPrefs.SetInt("ReturnedFromGame", 1);
 
             if (_runner != null)

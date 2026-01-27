@@ -76,17 +76,25 @@ public class TableUIController : MonoBehaviour
 
     private void CheckMinPLayers()
     {
+        if (BasicSpawner.Instance == null)
+            return;
 
-        if (BasicSpawner.Instance.Runner.IsServer)
+        var runner = BasicSpawner.Instance.Runner;
+        if (runner == null)
+            return;
+
+        if (!runner.IsServer)
+            return;
+
+        int activePlayers = runner.ActivePlayers.Count();
+
+        if (activePlayers < 2 && !gameActive)
         {
-            if (BasicSpawner.Instance.Runner.ActivePlayers.Count() < 2 && !gameActive)
-            {
-                startGameButton.gameObject.SetActive(false);
-            }
-            else if (!gameActive)
-            {
-                startGameButton.gameObject.SetActive(true);
-            }
+            startGameButton.gameObject.SetActive(false);
+        }
+        else if (!gameActive)
+        {
+            startGameButton.gameObject.SetActive(true);
         }
     }
     private void OnStartGameClicked()

@@ -80,9 +80,9 @@ namespace LoveLetter.Login
             if (string.IsNullOrEmpty(enteredName))
                 enteredName = _autoFillPlayerName.text;
 
-            if (enteredName.Length > 15)
+            if (enteredName.Length > 10)
             {
-                _notificationText.text = "Your name can be up to 15 characters long";
+                _notificationText.text = "Your name can be up to 10 characters long";
                 _notificationText.gameObject.SetActive(true);
                 return;
             }

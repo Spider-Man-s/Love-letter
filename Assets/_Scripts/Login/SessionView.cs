@@ -33,7 +33,6 @@ namespace LoveLetter.Login
             createRoomButton.onClick.AddListener(OnCreateRoomClicked);
             refreshButton.onClick.AddListener(RefreshSessionList);
 
-            // FIXED: use input field
             joinCustomGameButton.onClick.AddListener(() => JoinCustomGame(gameCodeInput.text));
 
             returnButton.onClick.AddListener(() =>
@@ -42,15 +41,33 @@ namespace LoveLetter.Login
                 playerMenu.SetActive(true);
             });
 
+            if (PlayerPrefs.GetInt("ReturnedFromGame", 0) == 1)
+            {
+                PlayerPrefs.SetInt("ReturnedFromGame", 0);
+
+                BasicSpawner.Instance.ReconnectToLobby();
+
+                playerMenu.SetActive(false);
+                sessionsMenu.SetActive(true);
+            }
+
+            BasicSpawner.Instance.EnsureRunner();
             BasicSpawner.Instance.Runner.AddCallbacks(this);
+
             RefreshSessionList();
         }
+
 
         private void OnCreateRoomClicked()
         {
             createNewGameMenu.SetActive(true);
             sessionsMenu.SetActive(false);
         }
+        public void OnConnectedToServer(NetworkRunner runner)
+        {
+            Debug.Log("[SessionView] Connected to server.");
+        }
+
 
         // ====================================================================
         // JOIN BY CODE (Public or Private)
@@ -143,7 +160,7 @@ namespace LoveLetter.Login
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
-        public void OnConnectedToServer(NetworkRunner runner) { }
+
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
