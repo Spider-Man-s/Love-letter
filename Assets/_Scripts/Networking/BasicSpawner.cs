@@ -367,7 +367,6 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
-            SceneManager.sceneLoaded += OnMenuLoaded;
             SceneManager.LoadScene(0);
         }
         public void ReturnToSessionList()
@@ -382,7 +381,6 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
-            SceneManager.sceneLoaded += OnMenuLoaded;
             SceneManager.LoadScene(0);
         }
 
@@ -458,11 +456,7 @@ namespace LoveLetter.Networking
 
             Debug.Log($"[BasicSpawner] Session state updated → {newState}");
         }
-        private void OnMenuLoaded(Scene s, LoadSceneMode m)
-        {
-            SceneManager.sceneLoaded -= OnMenuLoaded;
-            EnsureRunner();
-        }
+
 
         /* ===================================================================
          * UNUSED CALLBACKS
