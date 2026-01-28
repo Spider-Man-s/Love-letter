@@ -473,7 +473,7 @@ public class GameManager : NetworkBehaviour
 
 
         // ==============================
-        // SPECIAL: CHANCELLOR (Card 6)
+        // SPECIAL: CHANCELLOR
         // ==============================
         if (card.Type == CardType.Chancellor)
         {
@@ -482,7 +482,6 @@ public class GameManager : NetworkBehaviour
             player.RemoveCard(card);
             RPC_CardPlayed(playerId, (int)card.Type, player.Hand.Count);
 
-            // REAL count before draws
             int originalDeckCount = Deck.Count;
 
             PlayerRef owner = GetPlayerRefBySeat(playerId);
@@ -494,8 +493,6 @@ public class GameManager : NetworkBehaviour
             if (originalDeckCount == 0)
             {
                 Debug.Log("[SERVER] Chancellor: deck empty → discard only.");
-
-                // No draws, no UI except discard mode
                 obj.GetComponent<Player>()
                     .RPC_OpenChancellorUI(playerId, originalDeckCount);
 
@@ -551,8 +548,6 @@ public class GameManager : NetworkBehaviour
             CurrentTurnState = TurnState.Resolving;
             return;
         }
-
-
 
         // ==============================
         // NORMAL CARDS
@@ -755,9 +750,6 @@ public class GameManager : NetworkBehaviour
                 keep = hand[1];
                 bottom = hand[0];
             }
-
-
-
         }
 
         if (keep == null)
@@ -770,7 +762,6 @@ public class GameManager : NetworkBehaviour
             Debug.LogError("[Chancellor] INVALID bottom selection.");
             return;
         }
-
 
         hand.Clear();
         hand.Add(keep);
@@ -800,8 +791,6 @@ public class GameManager : NetworkBehaviour
         EndTurn();
     }
 
-
-
     public int GetSeatByPlayerRef(PlayerRef playerRef)
     {
         for (int i = 0; i < Players.Count; i++)
@@ -818,7 +807,6 @@ public class GameManager : NetworkBehaviour
         Debug.LogError("[GameManager] Could not resolve seat index for PlayerRef: " + playerRef);
         return -1;
     }
-
 
     public void BroadcastSeatMap()
     {
@@ -845,7 +833,6 @@ public class GameManager : NetworkBehaviour
 
         RPC_SendFullSeatMap(avatarIds, names);
     }
-
 
     public void SyncDeck()
     {
@@ -893,7 +880,6 @@ public class GameManager : NetworkBehaviour
         CurrentPlayerIndex = next;
         StartTurn();
     }
-
 
     private void CheckRoundEnd()
     {
@@ -947,8 +933,6 @@ public class GameManager : NetworkBehaviour
         return -1;
     }
 
-
-
     private void EndRound(RoundResult result)
     {
         if (_roundHasEnded)
@@ -970,7 +954,6 @@ public class GameManager : NetworkBehaviour
             RPC_UpdateVictoryCounter(seat, _victoryTokens[seat]);
         }
 
-        // next starting player = winner
         _lastRoundWinner = result.Winners[0];
 
         // ------------------------------------------------
@@ -984,7 +967,6 @@ public class GameManager : NetworkBehaviour
             RPC_AnnounceAction($"{spyName} gains a Spy bonus token.");
 
         }
-
         // ------------------------------------------------
         // Reveal all final cards
         // ------------------------------------------------
@@ -1035,7 +1017,6 @@ public class GameManager : NetworkBehaviour
             _victoryTokens[i] = 0;
     }
 
-
     public void SyncPlayerHandToOwner(int seatIndex)
     {
         PlayerRef owner = GetPlayerRefBySeat(seatIndex);
@@ -1066,7 +1047,6 @@ public class GameManager : NetworkBehaviour
         RPC_SendHandCount(seatIndex, count);
     }
 
-
     public void DebugDumpState(string tag = "")
     {
         Debug.Log("========== GAME STATE DUMP [" + tag + "] ==========");
@@ -1077,9 +1057,6 @@ public class GameManager : NetworkBehaviour
         Debug.Log($"CurrentPlayerIndex={CurrentPlayerIndex}");
         Debug.Log($"CurrentTurnState={CurrentTurnState}");
 
-        // -------------------------
-        // PLAYERS LIST
-        // -------------------------
         Debug.Log("---- Players ----");
 
         if (Players == null)
@@ -1155,7 +1132,6 @@ public class GameManager : NetworkBehaviour
 
     // ====================================================================
     // RPCs     
-    //
     // ===================================================================
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -1215,7 +1191,6 @@ public class GameManager : NetworkBehaviour
 
         PlayCard(seatIndex, card, ctx);
 
-
     }
 
 
@@ -1268,7 +1243,6 @@ public class GameManager : NetworkBehaviour
         }
 
         PlayCard(seatIndex, card, new EffectContext());
-
 
     }
 
@@ -1356,8 +1330,6 @@ public class GameManager : NetworkBehaviour
         var effect = new ChancellorEffect();
         effect.Resolve(this, seatIndex, ctx);
     }
-
-
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     public void RPC_SendFullSeatMap(int[] avatarIds, string[] names)

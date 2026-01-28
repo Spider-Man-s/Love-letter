@@ -48,34 +48,24 @@ public class Deck
     }
     public void PutOnBottom(Card card)
     {
-        // Convert stack → list so list[0] = TOP, list[last] = BOTTOM
         var list = cards.ToList();
-
-        // Add to the bottom (END of list)
         list.Add(card);
-
-        // Now rebuild the stack so last element remains BOTTOM
         cards = new Stack<Card>(list.Reverse<Card>());
     }
 
     public void PutSecondToLast(Card card)
     {
-        var list = cards.ToList(); // list[0] = top
+        var list = cards.ToList();
 
         if (list.Count == 0)
         {
             PutOnBottom(card);
             return;
         }
-
-        // Insert just before the last element (second from bottom)
         list.Insert(list.Count - 1, card);
 
         cards = new Stack<Card>(list.Reverse<Card>());
     }
-
-
-
 
     public int Count => cards.Count;
 }

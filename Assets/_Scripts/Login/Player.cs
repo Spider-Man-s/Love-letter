@@ -196,6 +196,4 @@ public class Player : NetworkBehaviour
         GameManager.Instance.ServerResolveChancellor(Object.InputAuthority, choices);
     }
 
-
-
 }

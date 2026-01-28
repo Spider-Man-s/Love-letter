@@ -9,11 +9,7 @@ public class DeckView : MonoBehaviour
 
     private CardView deckCard;
     public int CurrentCount { get; private set; } = 0;
-    void Start()
-    {
 
-
-    }
     public void Initialize()
     {
         deckCard = Instantiate(cardPrefab, cardParent, false);
