@@ -15275,6 +15275,7 @@ GameObject:
   - component: {fileID: 1920110217}
   - component: {fileID: 1920110216}
   - component: {fileID: 1920110215}
+  - component: {fileID: 1920110219}
   m_Layer: 0
   m_Name: UIManager
   m_TagString: Untagged
@@ -15387,6 +15388,18 @@ MonoBehaviour:
   _playerNameMenu: {fileID: 67659400}
   _sessionsMenu: {fileID: 1752267572}
   AvatarToggleGroup: {fileID: 1161710966}
+--- !u!114 &1920110219
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1920110207}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de732cebbb01ffb48b815847c013df30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1925851210
 GameObject:
   m_ObjectHideFlags: 0

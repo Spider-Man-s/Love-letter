@@ -67,7 +67,6 @@ namespace LoveLetter.Login
                 _sessionsMenu.SetActive(false);
             });
 
-
             _confirmPlayerInfoButton.onClick.AddListener(OnConfirmPlayerInfo);
         }
 
