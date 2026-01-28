@@ -142,7 +142,7 @@ namespace Photon.Voice.Unity
 #endif
         }
 
-#region Public Fields
+        #region Public Fields
 
         /// <summary> Settings to be used by this Voice Client</summary>
         public AppSettings Settings;
@@ -164,9 +164,9 @@ namespace Photon.Voice.Unity
         public int PlayStationUserID = 0; // set from your game's code
 #endif
 
-#endregion
+        #endregion
 
-#region Properties
+        #region Properties
 
         public Voice.ILogger Logger => voiceComponentImpl.Logger;
         // to set logging level from code
@@ -235,9 +235,9 @@ namespace Photon.Voice.Unity
             }
         }
 
-#endregion
+        #endregion
 
-#region Public Methods
+        #region Public Methods
 
         /// <summary>
         /// Connect to Photon server using <see cref="Settings"/>
@@ -299,9 +299,9 @@ namespace Photon.Voice.Unity
             return false;
         }
 
-#endregion
+        #endregion
 
-#region Private Methods
+        #region Private Methods
 
         protected override void Awake()
         {
@@ -484,29 +484,29 @@ namespace Photon.Voice.Unity
             switch (toState)
             {
                 case ClientState.ConnectedToMasterServer:
-                {
-                    if (this.Client.RegionHandler != null)
                     {
-                        if (this.Settings != null)
+                        if (this.Client.RegionHandler != null)
                         {
-                            this.Settings.BestRegionSummaryFromStorage = this.Client.RegionHandler.SummaryToCache;
+                            if (this.Settings != null)
+                            {
+                                this.Settings.BestRegionSummaryFromStorage = this.Client.RegionHandler.SummaryToCache;
+                            }
+                            this.BestRegionSummaryInPreferences = this.Client.RegionHandler.SummaryToCache;
                         }
-                        this.BestRegionSummaryInPreferences = this.Client.RegionHandler.SummaryToCache;
+                        break;
                     }
-                    break;
-                }
                 case ClientState.Joined:
-                {
-                    for (int i = 0; i < this.recorders.Count; i++)
                     {
-                        Recorder rec = this.recorders[i];
-                        if (rec.RecordWhenJoined)
+                        for (int i = 0; i < this.recorders.Count; i++)
                         {
-                            rec.RecordingEnabled = true;
+                            Recorder rec = this.recorders[i];
+                            if (rec.RecordWhenJoined)
+                            {
+                                rec.RecordingEnabled = true;
+                            }
                         }
+                        break;
                     }
-                    break;
-                }
             }
         }
 
@@ -597,6 +597,6 @@ namespace Photon.Voice.Unity
             }
         }
 
-#endregion
+        #endregion
     }
 }

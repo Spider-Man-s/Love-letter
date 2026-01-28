@@ -1,2 +1,13 @@
 fileFormatVersion: 2
 guid: 681cdafddfc4e51429b667b70646e2cd
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - recorderPrefab: {fileID: 4822238099440582544, guid: bef8d83d7755cdc4a999e70b7044aefb, type: 3}
+  - speakerPrefab: {fileID: 1504063960861910129, guid: 131d2b0b9a08a9e4ebab1cbdf9991dd8, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -58,7 +58,6 @@ public class TableUIController : MonoBehaviour
 
         ResetTable();
 
-        // Wait for GameManager
         while (GameManager.Instance == null)
             yield return null;
 
@@ -134,10 +133,8 @@ public class TableUIController : MonoBehaviour
 
     public void ShowRoundWinner(string message)
     {
-        // Announce the winner(s)
         GameManager.Instance.RPC_AnnounceWinner(message);
 
-        // Allow host to proceed
         if (BasicSpawner.Instance.Runner.IsServer)
             nextRoundButton.gameObject.SetActive(true);
     }
@@ -212,7 +209,7 @@ public class TableUIController : MonoBehaviour
 
     public void RemoveLocalCard(CardView cardView)
     {
-        int localSeat = 0; // always 0 for local player
+        int localSeat = 0;
         handCards[localSeat].Remove(cardView);
         Destroy(cardView.gameObject);
     }

@@ -10,25 +10,20 @@ public class ChancellorEffect : ICardEffect
         int deckCount = game.Deck.Count;
 
         // ======================================================
-        // CASE 1: Deck has 0 cards → Chancellor is a dead card
+        // CASE 1: Deck has 0 cards
         // ======================================================
         if (deckCount == 0)
         {
             Debug.Log("[Chancellor] Deck empty → No draw → No UI → No choices.");
-            // Sync (so clients see empty deck)
             game.SyncDeck();
-
-            // Inform all clients
             string name = game.GetPlayerName(sourcePlayerId);
             game.RPC_AnnounceAction($"{name} played Chancellor, but the deck was empty.");
-
-            // End turn normally
             game.ServerResolveChancellor_NoChoices(sourcePlayerId);
             return;
         }
 
         // ======================================================
-        // CASE 2: Deck has 1 card → draw only that one
+        // CASE 2: Deck has 1 card
         // ======================================================
         Card c1 = game.Deck.Draw();
         player.Hand.Add(c1);
@@ -40,13 +35,9 @@ public class ChancellorEffect : ICardEffect
             c2 = game.Deck.Draw();
             player.Hand.Add(c2);
         }
-
-        // Now sync deck count to all clients
         game.SyncDeck();
 
-        int handCount = player.Hand.Count; // Will be 2 or 3
-
-        // Sync hand to correct player ONLY
+        int handCount = player.Hand.Count;
         game.SyncPlayerHandToOwner(sourcePlayerId);
 
         // ======================================================
@@ -63,8 +54,6 @@ public class ChancellorEffect : ICardEffect
         }
 
         Debug.Log($"[Chancellor] Opening UI with hand count {handCount}");
-
-        // Show Chancellor panel (2-card or 3-card logic handled in UI)
         playerObj.GetComponent<Player>()
      .RPC_OpenChancellorUI(sourcePlayerId, deckCount);
     }

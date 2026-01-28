@@ -38,7 +38,7 @@ public class TargetSelectionUI : MonoBehaviour
     private int selectedPlayerSeat = -1;
     private int _currentCardId = -1;
 
-    private CardType selectedCardGuess = CardType.Guard; // TEMP DEFAULT
+    private CardType selectedCardGuess = CardType.Guard;
     public static TargetSelectionUI Instance { get; private set; }
 
     private void Awake()
@@ -71,8 +71,6 @@ public class TargetSelectionUI : MonoBehaviour
 
         Clear();
         Debug.Log("[UI:TargetSelection] Opening with cardId=" + cardId);
-
-        // --- DEBUG BLOCK YOU REQUESTED ---
         Debug.Log("=== DEBUG TARGET UI — PLAYER LIST ===");
         for (int i = 0; i < GameManager.Instance.Players.Count; i++)
         {
@@ -83,14 +81,10 @@ public class TargetSelectionUI : MonoBehaviour
                 Debug.Log($"Players[{i}] Alive={psDbg.IsAlive} HandCount={psDbg.Hand.Count}");
         }
         Debug.Log("=== END DEBUG TARGET UI ===");
-        // ----------------------------------
 
         GameManager.Instance.DebugDumpState("TargetSelection");
 
-        // Determine what should be shown
         bool allowSelfTarget = ConfigureForCard(cardId);
-
-        // If UI is not needed, exit
         if (!TargetPanel.activeSelf)
             return;
 
@@ -100,21 +94,19 @@ public class TargetSelectionUI : MonoBehaviour
         foreach (var p in playerObjects)
         {
             int seat = p.SeatIndex;
-
-            // --- CRASH FIX: prevent null reference ---
             if (seat < 0 || seat >= GameManager.Instance.Players.Count)
             {
                 Debug.LogError($"[TargetSelectionUI] ERROR: Seat {seat} outside Players.Count={GameManager.Instance.Players.Count}");
-                continue; // skip invalid seats
+                continue;
             }
 
             var ps = GameManager.Instance.GetPlayer(seat);
             if (ps == null)
             {
                 Debug.LogError($"[TargetSelectionUI] ERROR: Players[{seat}] is NULL");
-                continue; // prevents the nullref
+                continue;
             }
-            // -----------------------------------------
+
 
             bool interactable =
                 ps.IsAlive &&
@@ -132,8 +124,6 @@ public class TargetSelectionUI : MonoBehaviour
                 OnPlayerSelected
             );
         }
-
-        // TargetPanel MUST stay active here
         TargetPanel.SetActive(true);
     }
 
@@ -146,8 +136,6 @@ public class TargetSelectionUI : MonoBehaviour
         }
         return false;
     }
-
-
 
     // ===============================
     // CALLBACKS
@@ -183,7 +171,6 @@ public class TargetSelectionUI : MonoBehaviour
     {
         _currentCardId = cardId;
 
-        // Hide everything by default
         playerSection.SetActive(false);
         cardSection.SetActive(false);
         playerSectionText.gameObject.SetActive(false);
@@ -260,14 +247,12 @@ public class TargetSelectionUI : MonoBehaviour
             Debug.LogWarning("No target selected.");
             return;
         }
-
-        if (_currentCardId == 1) // Guard (needs target + guess)
+        if (_currentCardId == 1)
         {
             GameManager.Instance.LocalPlayerConfirmedTarget(selectedPlayerSeat, selectedCardGuess);
         }
         else
         {
-            // Priest, Baron, Prince, King → target-only
             GameManager.Instance.LocalPlayerPlayTargetOnly(selectedPlayerSeat);
         }
 
@@ -276,7 +261,7 @@ public class TargetSelectionUI : MonoBehaviour
     }
 
     public void ClearGroup()
-    {// Clear playerSection
+    {
         if (playerSection != null)
         {
             Toggle[] playerToggles = playerSection.GetComponentsInChildren<Toggle>();
@@ -285,8 +270,6 @@ public class TargetSelectionUI : MonoBehaviour
                 t.SetIsOnWithoutNotify(false);
             }
         }
-
-        // Clear cardSection
         if (cardSection != null)
         {
             Toggle[] cardToggles = cardSection.GetComponentsInChildren<Toggle>();
@@ -323,7 +306,6 @@ public class TargetSelectionUI : MonoBehaviour
             if (valid)
                 return true;
         }
-
         return false;
     }
 

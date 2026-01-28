@@ -22,8 +22,6 @@ public class PrinceEffect : ICardEffect
                 $"{sourceName} tried to use Prince on {targetName}, but they are eliminated.");
             return;
         }
-
-        // Protection still matters
         if (target.IsProtected)
         {
             game.RPC_AnnounceAction(
@@ -37,35 +35,29 @@ public class PrinceEffect : ICardEffect
             return;
         }
 
-        // DISCARD
         Card discarded = target.Hand[0];
         target.Hand.Clear();
         target.DiscardPile.Add(discarded);
-        // SHOW discarded card to everyone
+
         game.RPC_ShowDiscard(targetId, (int)discarded.Type);
 
 
         game.RPC_AnnounceAction(
             $"{sourceName} played Prince. {targetName} discarded {discarded.Type}.");
 
-        // Princess instant loss
         if (discarded.Type == CardType.Princess)
         {
             game.EliminatePlayer(targetId);
-
-            // Update UI for everyone
             game.SyncPlayerHandToOwner(targetId);
             game.BroadcastHandCount(targetId);
             return;
         }
 
-        // DRAW NEW CARD (Prince Draw)
         Card newCard;
 
-        // If deck empty → draw BONUS CARD
         if (game.Deck.Count == 0)
         {
-            newCard = game.GetBonusCard();   // custom getter
+            newCard = game.GetBonusCard();
         }
         else
         {
@@ -77,7 +69,6 @@ public class PrinceEffect : ICardEffect
 
         Debug.Log($"[PrinceEffect] Player {targetId} draws {newCard.Type}");
 
-        // SYNC UI ON ALL CLIENTS
         game.SyncPlayerHandToOwner(targetId);
         game.BroadcastHandCount(targetId);
     }

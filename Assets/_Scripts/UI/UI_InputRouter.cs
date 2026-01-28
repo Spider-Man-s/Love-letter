@@ -22,7 +22,6 @@ public class UI_InputRouter : MonoBehaviour
             return;
         }
 
-        // Ask GameManager if it can be played right now
         if (!GameManager.Instance.CanPlayerPlayThisCard(cardView))
         {
             Debug.Log("[UI] Not allowed to play this card right now.");

@@ -58,9 +58,6 @@ namespace LoveLetter.Login
             RefreshSessionList();
         }
 
-
-
-
         private void OnCreateRoomClicked()
         {
             createNewGameMenu.SetActive(true);
@@ -70,7 +67,6 @@ namespace LoveLetter.Login
         {
             Debug.Log("[SessionView] Connected to server.");
         }
-
 
         // ====================================================================
         // JOIN BY CODE (Public or Private)

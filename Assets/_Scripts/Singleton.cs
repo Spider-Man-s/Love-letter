@@ -11,8 +11,6 @@ public abstract class Singleton<T> : MonoBehaviour where T : MonoBehaviour
             Destroy(gameObject);
             return;
         }
-
-        // Register this instance
         Instance = this as T;
 
         OnInit();

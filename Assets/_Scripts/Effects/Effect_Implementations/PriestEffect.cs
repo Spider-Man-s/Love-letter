@@ -22,8 +22,6 @@ public class PriestEffect : ICardEffect
             return;
 
         Card targetCard = target.Hand[0];
-
-        // Find the Player component of the SOURCE (the one who played Priest)
         Player sourcePlayerObj = BasicSpawner.Instance.GetPlayerBySeat(sourcePlayerId);
 
         if (sourcePlayerObj == null)
@@ -32,10 +30,8 @@ public class PriestEffect : ICardEffect
             return;
         }
 
-        // Send UI ONLY to the Priest player
         sourcePlayerObj.RPC_ShowPriestResult((int)targetCard.Type);
 
-        // Public announce
         game.RPC_AnnounceAction(
             $"{sourceName} played Priest and looked at {targetName}'s hand."
         );

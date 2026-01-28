@@ -5,6 +5,10 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Linq;
 using LoveLetter.Login;
+using Photon.Voice;
+using Photon.Voice.Unity;
+using Photon.Voice.Fusion;
+
 
 
 namespace LoveLetter.Networking
@@ -39,12 +43,12 @@ namespace LoveLetter.Networking
 
         [Header("Game Manager Prefab")]
         [SerializeField] private NetworkPrefabRef _gameManagerPrefab;
+        [SerializeField] private GameObject runnerPrefab;
 
         static NetworkObject gameManagerInstance = null;
 
         private bool ManualLeave = false;
         private bool LeaveToMainMenu = false;
-
 
         /* --------------------------- PLAYER DATA --------------------------- */
         public static class PlayerData
@@ -78,12 +82,17 @@ namespace LoveLetter.Networking
         {
             if (_runner != null)
                 return;
-
-            GameObject go = new GameObject("NetworkRunner");
+            var go = Instantiate(runnerPrefab);
             DontDestroyOnLoad(go);
 
-            _runner = go.AddComponent<NetworkRunner>();
-            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+            _runner = go.GetComponent<NetworkRunner>();
+            _networkSceneManager = go.GetComponent<NetworkSceneManagerDefault>();
+
+            if (_runner == null)
+            {
+                Debug.LogError("RunnerPrefab missing NetworkRunner");
+                return;
+            }
 
             _runner.AddCallbacks(this);
 
@@ -92,14 +101,9 @@ namespace LoveLetter.Networking
             var result = await _runner.JoinSessionLobby(SessionLobby.ClientServer);
 
             if (result.Ok)
-            {
-                Debug.Log("[BasicSpawner] Joined lobby successfully.");
                 SessionView.Instance?.RefreshSessionList();
-            }
             else
-            {
                 Debug.LogError("[BasicSpawner] Failed to join lobby: " + result.ShutdownReason);
-            }
         }
 
         /* ===================================================================
@@ -125,11 +129,18 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
-            GameObject go = new GameObject("NetworkRunner");
+            var go = Instantiate(runnerPrefab);
             DontDestroyOnLoad(go);
 
-            _runner = go.AddComponent<NetworkRunner>();
-            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+            _runner = go.GetComponent<NetworkRunner>();
+            _networkSceneManager = go.GetComponent<NetworkSceneManagerDefault>();
+
+            if (_runner == null)
+            {
+                Debug.LogError("RunnerPrefab missing NetworkRunner");
+                return;
+            }
+
             _runner.AddCallbacks(this);
 
             Debug.Log("[BasicSpawner] Reconnecting to lobby...");
@@ -139,6 +150,7 @@ namespace LoveLetter.Networking
             if (!result.Ok)
                 Debug.LogError("[BasicSpawner] Failed to reconnect: " + result.ShutdownReason);
         }
+
 
         /* ===================================================================
          * START HOST / CLIENT
@@ -204,7 +216,6 @@ namespace LoveLetter.Networking
             GameManager.Instance.AssignSeat(player, seatIndex);
             UpdatePlayerCount();
         }
-
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
             if (_spawnedPlayers.TryGetValue(player, out var obj))
@@ -212,10 +223,30 @@ namespace LoveLetter.Networking
                 runner.Despawn(obj);
                 _spawnedPlayers.Remove(player);
             }
+
+            bool isPlaying = false;
+
+            if (runner.SessionInfo != null &&
+                runner.SessionInfo.Properties != null &&
+                runner.SessionInfo.Properties.TryGetValue("state", out SessionProperty stateProp))
+            {
+                int stateInt = (int)stateProp;
+                isPlaying = (SessionStateType)stateInt == SessionStateType.Playing;
+            }
+
+            if (runner.IsServer && isPlaying)
+            {
+                Debug.Log("[BasicSpawner] Player left mid-game → abort match.");
+
+                RPC_ForceReturnToSessionList();
+                runner.Shutdown();
+
+                return;
+            }
+
             if (runner.IsServer)
                 UpdatePlayerCount();
         }
-
 
 
 
@@ -308,7 +339,7 @@ namespace LoveLetter.Networking
 
             if (_runner != null && _runner.IsServer)
             {
-                _runner.SessionInfo.UpdateCustomProperties(new Dictionary<string, SessionProperty> { ["closed"] = 1 });
+                RPC_ForceReturnToSessionList();
                 await _runner.Shutdown(true);
             }
             else if (_runner != null)
@@ -322,7 +353,7 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
-            SceneManager.sceneLoaded += OnMenuLoaded;
+            PlayerPrefs.SetInt("ReturnedFromGame", 1);
             SceneManager.LoadScene(0);
         }
 
@@ -457,10 +488,9 @@ namespace LoveLetter.Networking
 
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        public void RPC_HostClosingRoom()
+        public void RPC_ForceLeave()
         {
             ManualLeave = true;
-
             PlayerPrefs.SetInt("ReturnedFromGame", 1);
 
             if (_runner != null)
@@ -472,5 +502,19 @@ namespace LoveLetter.Networking
             SceneManager.LoadScene(0);
         }
 
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        public void RPC_ForceReturnToSessionList()
+        {
+            ManualLeave = true;
+            PlayerPrefs.SetInt("ReturnedFromGame", 1);
+
+            if (_runner != null)
+            {
+                Destroy(_runner.gameObject);
+                _runner = null;
+            }
+
+            SceneManager.LoadScene(0);
+        }
     }
 }

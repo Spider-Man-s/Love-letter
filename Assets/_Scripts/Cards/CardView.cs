@@ -13,8 +13,6 @@ public class CardView : MonoBehaviour,
     private Vector3 originalScale;
 
     public Card CardData { get; private set; }
-
-    // These are controlled by GameManager / TableUIController
     public bool IsLocalCard { get; set; } = false;
     public bool interactable { get; set; } = true;
 
@@ -26,7 +24,6 @@ public class CardView : MonoBehaviour,
             highlight.SetActive(false);
     }
 
-    // === SETUP ===
     public void Setup(Card card)
     {
         CardData = card;
@@ -37,7 +34,6 @@ public class CardView : MonoBehaviour,
             highlight.SetActive(false);
     }
 
-    // === HOVER EFFECTS ===
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (!IsLocalCard || !interactable)
@@ -56,8 +52,6 @@ public class CardView : MonoBehaviour,
         if (highlight != null)
             highlight.SetActive(false);
     }
-
-    // === CLICK ===
     public void OnPointerClick(PointerEventData eventData)
     {
         if (!IsLocalCard) return;
@@ -66,12 +60,10 @@ public class CardView : MonoBehaviour,
         UI_InputRouter.Instance.OnCardClicked(this);
     }
 
-    // === CALLED BY UI MANAGER ===
     public void SetInteractable(bool value)
     {
         interactable = value;
 
-        // Optional: gray out art
         art.color = interactable ? Color.white : Color.red;
     }
 }

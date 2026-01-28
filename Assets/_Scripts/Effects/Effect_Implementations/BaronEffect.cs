@@ -34,9 +34,6 @@ public class BaronEffect : ICardEffect
         if (sourceCard.Value > targetCard.Value) outcome = 1;
         else if (sourceCard.Value < targetCard.Value) outcome = -1;
 
-        // ====================================================================
-        // GET PLAYER OBJECTS FOR RPC TARGETING
-        // ====================================================================
         Player sourcePlayerObj = BasicSpawner.Instance.GetPlayerBySeat(sourcePlayerId);
         Player targetPlayerObj = BasicSpawner.Instance.GetPlayerBySeat(targetId);
 
@@ -45,9 +42,6 @@ public class BaronEffect : ICardEffect
             Debug.LogError("BaronEffect: Could not find Player objects for UI.");
             return;
         }
-        // ====================================================================
-        // PRIVATE UI
-        // ====================================================================
 
         sourcePlayerObj.RPC_ShowBaronResult(
           (int)sourceCard.Type,
@@ -61,9 +55,6 @@ public class BaronEffect : ICardEffect
             -outcome
         );
 
-        // ====================================================================
-        // PUBLIC ANNOUNCE
-        // ====================================================================
         if (outcome == 1)
         {
             game.EliminatePlayer(targetId);

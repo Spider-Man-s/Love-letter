@@ -22,10 +22,10 @@ namespace LoveLetter.Login
         [SerializeField] private TMP_InputField _playerName = null;
 
         [Header("Menus")]
-        [SerializeField] private GameObject _mainMenu = null;        // BeginScreen
-        [SerializeField] private GameObject _lobbyMenu = null;       // LobbyScreen
-        [SerializeField] private GameObject _playerNameMenu = null;  // LobbyScreen/PlayerMenu
-        [SerializeField] private GameObject _sessionsMenu = null;    // LobbyScreen/SessionsScreen
+        [SerializeField] private GameObject _mainMenu = null;
+        [SerializeField] private GameObject _lobbyMenu = null;
+        [SerializeField] private GameObject _playerNameMenu = null;
+        [SerializeField] private GameObject _sessionsMenu = null;
 
         [Header("Avatar Selection")]
         [SerializeField] private ToggleGroup AvatarToggleGroup = null;

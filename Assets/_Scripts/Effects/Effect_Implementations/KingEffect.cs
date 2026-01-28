@@ -29,7 +29,6 @@ public class KingEffect : ICardEffect
             return;
         }
 
-        // Swap hands
         var temp = new List<Card>(source.Hand);
         source.Hand.Clear();
         source.Hand.AddRange(target.Hand);
@@ -41,11 +40,9 @@ public class KingEffect : ICardEffect
         game.RPC_AnnounceAction(
             $"{sourceName} played King and swapped hands with {targetName}.");
 
-        // NEW: Sync real hands to owners
         game.SyncPlayerHandToOwner(sourcePlayerId);
         game.SyncPlayerHandToOwner(targetId);
 
-        // NEW: Sync hand counts to everyone else
         game.BroadcastHandCount(sourcePlayerId);
         game.BroadcastHandCount(targetId);
     }
