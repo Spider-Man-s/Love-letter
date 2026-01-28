@@ -4060,7 +4060,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a86f533fd9917dd4da8601e9eb542c96, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LogLevel: 1
+  LogLevel: 4
 --- !u!4 &564296013
 Transform:
   m_ObjectHideFlags: 0
@@ -11303,6 +11303,9 @@ MonoBehaviour:
     RawGuidValue: 131d2b0b9a08a9e4ebab1cbdf9991dd8
   _gameManagerPrefab:
     RawGuidValue: b7118bb0525e307428b3eb81a02510c0
+  runnerPrefab: {fileID: 6521473073086378394, guid: 36aa0898bf01eeb40a9a249a595d5644, type: 3}
+  recorderPrefab: {fileID: 4822238099440582544, guid: bef8d83d7755cdc4a999e70b7044aefb, type: 3}
+  speakerPrefab: {fileID: 1504063960861910129, guid: 131d2b0b9a08a9e4ebab1cbdf9991dd8, type: 3}
 --- !u!1 &1656067540
 GameObject:
   m_ObjectHideFlags: 0

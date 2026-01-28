@@ -10,6 +10,7 @@ using Photon.Voice.Unity;
 using Photon.Voice.Fusion;
 
 
+
 namespace LoveLetter.Networking
 {
     public enum SessionStateType
@@ -42,14 +43,12 @@ namespace LoveLetter.Networking
 
         [Header("Game Manager Prefab")]
         [SerializeField] private NetworkPrefabRef _gameManagerPrefab;
+        [SerializeField] private GameObject runnerPrefab;
 
         static NetworkObject gameManagerInstance = null;
-        public Recorder recorderPrefab;
-        private Recorder runtimeRecorder;
-        public GameObject speakerPrefab;
+
         private bool ManualLeave = false;
         private bool LeaveToMainMenu = false;
-
 
         /* --------------------------- PLAYER DATA --------------------------- */
         public static class PlayerData
@@ -83,26 +82,17 @@ namespace LoveLetter.Networking
         {
             if (_runner != null)
                 return;
-
-            GameObject go = new GameObject("NetworkRunner");
+            var go = Instantiate(runnerPrefab);
             DontDestroyOnLoad(go);
 
-            _runner = go.AddComponent<NetworkRunner>();
-            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+            _runner = go.GetComponent<NetworkRunner>();
+            _networkSceneManager = go.GetComponent<NetworkSceneManagerDefault>();
 
-            if (recorderPrefab == null)
+            if (_runner == null)
             {
-                Debug.LogError("BasicSpawner: Recorder prefab NOT assigned.");
+                Debug.LogError("RunnerPrefab missing NetworkRunner");
                 return;
             }
-
-            runtimeRecorder = Instantiate(recorderPrefab);
-            DontDestroyOnLoad(runtimeRecorder.gameObject);
-
-
-            var fvc = go.AddComponent<FusionVoiceClient>();
-            fvc.PrimaryRecorder = runtimeRecorder;
-            fvc.SpeakerPrefab = speakerPrefab;
 
             _runner.AddCallbacks(this);
 
@@ -111,14 +101,9 @@ namespace LoveLetter.Networking
             var result = await _runner.JoinSessionLobby(SessionLobby.ClientServer);
 
             if (result.Ok)
-            {
-                Debug.Log("[BasicSpawner] Joined lobby successfully.");
                 SessionView.Instance?.RefreshSessionList();
-            }
             else
-            {
                 Debug.LogError("[BasicSpawner] Failed to join lobby: " + result.ShutdownReason);
-            }
         }
 
         /* ===================================================================
@@ -144,19 +129,19 @@ namespace LoveLetter.Networking
                 _runner = null;
             }
 
-            GameObject go = new GameObject("NetworkRunner");
+            var go = Instantiate(runnerPrefab);
             DontDestroyOnLoad(go);
 
-            _runner = go.AddComponent<NetworkRunner>();
-            _networkSceneManager = go.AddComponent<NetworkSceneManagerDefault>();
+            _runner = go.GetComponent<NetworkRunner>();
+            _networkSceneManager = go.GetComponent<NetworkSceneManagerDefault>();
+
+            if (_runner == null)
+            {
+                Debug.LogError("RunnerPrefab missing NetworkRunner");
+                return;
+            }
+
             _runner.AddCallbacks(this);
-
-            runtimeRecorder = Instantiate(recorderPrefab);
-            DontDestroyOnLoad(runtimeRecorder.gameObject);
-
-            var fvc = go.AddComponent<FusionVoiceClient>();
-            fvc.PrimaryRecorder = runtimeRecorder;
-            fvc.SpeakerPrefab = speakerPrefab;
 
             Debug.Log("[BasicSpawner] Reconnecting to lobby...");
 
@@ -165,6 +150,7 @@ namespace LoveLetter.Networking
             if (!result.Ok)
                 Debug.LogError("[BasicSpawner] Failed to reconnect: " + result.ShutdownReason);
         }
+
 
         /* ===================================================================
          * START HOST / CLIENT
